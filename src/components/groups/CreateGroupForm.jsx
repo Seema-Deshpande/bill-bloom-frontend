@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Form, Button, Card, Alert, ListGroup } from "react-bootstrap";
 import "../../App.css";
 import { users } from "../../data/dummyData";
 
@@ -60,96 +61,116 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
   };
 
   return (
-    <div className="card">
-      <div className="section-header">
-        <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>Create New Group</h3>
-        {onCancel && <button className="btn-icon" onClick={onCancel}>✕</button>}
-      </div>
-
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label className="form-label" htmlFor="group-name">Group Name</label>
-          <input
-            id="group-name" type="text" value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) setErrors((prev) => ({ ...prev, name: "" }));
-            }}
-            placeholder="e.g. Goa Trip 2025"
-            className={`form-input${errors.name ? " error" : ""}`}
-          />
-          {errors.name && <span className="form-error">{errors.name}</span>}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label">Add Members</label>
-          <div className="member-search-wrap">
-            <input
+    <Card>
+      <Card.Header className="d-flex justify-content-between align-items-center">
+        <Card.Title className="mb-0">Create New Group</Card.Title>
+        {onCancel && (
+          <Button variant="link" size="sm" className="p-0" onClick={onCancel}>
+            ✕
+          </Button>
+        )}
+      </Card.Header>
+      <Card.Body>
+        <Form onSubmit={handleSubmit} noValidate>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="group-name">Group Name</Form.Label>
+            <Form.Control
+              id="group-name"
               type="text"
-              className={`form-input${errors.members ? " error" : ""}`}
-              placeholder="Search by username…"
-              value={search}
+              value={name}
               onChange={(e) => {
-                setSearch(e.target.value);
-                setDropdownOpen(true);
+                setName(e.target.value);
+                if (errors.name) setErrors((prev) => ({ ...prev, name: "" }));
               }}
-              onFocus={() => search.trim() && setDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+              placeholder="e.g. Goa Trip 2025"
+              isInvalid={!!errors.name}
             />
-            {dropdownOpen && filteredUsers.length > 0 && (
-              <ul className="member-dropdown">
-                {filteredUsers.map((user) => (
-                  <li
-                    key={user._id}
-                    className="member-dropdown-item"
-                    onMouseDown={() => addMember(user._id)}
-                  >
-                    <div className="avatar-circle avatar-sm avatar-dark">
-                      {user.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="member-name">{user.username}</div>
-                      <div className="member-email">{user.email}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+            <Form.Control.Feedback type="invalid">
+              {errors.name}
+            </Form.Control.Feedback>
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Add Members</Form.Label>
+            <div className="member-search-wrap position-relative">
+              <Form.Control
+                type="text"
+                placeholder="Search by username…"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setDropdownOpen(true);
+                }}
+                onFocus={() => search.trim() && setDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                isInvalid={!!errors.members}
+              />
+              {dropdownOpen && filteredUsers.length > 0 && (
+                <ListGroup className="member-dropdown position-absolute w-100">
+                  {filteredUsers.map((user) => (
+                    <ListGroup.Item
+                      key={user._id}
+                      className="member-dropdown-item d-flex align-items-center gap-2"
+                      onMouseDown={() => addMember(user._id)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div className="avatar-circle avatar-sm avatar-dark">
+                        {user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="member-name">{user.username}</div>
+                        <small className="member-email">{user.email}</small>
+                      </div>
+                    </ListGroup.Item>
+                  ))}
+                </ListGroup>
+              )}
+              {dropdownOpen && search.trim() && filteredUsers.length === 0 && (
+                <div className="member-dropdown position-absolute w-100 text-center p-3">
+                  <small className="text-muted">No users found</small>
+                </div>
+              )}
+            </div>
+            {errors.members && <Form.Control.Feedback type="invalid" className="d-block">{errors.members}</Form.Control.Feedback>}
+
+            {selectedMembers.length > 0 && (
+              <div className="selected-chips mt-3">
+                {selectedMembers.map((id) => {
+                  const user = users.find((u) => u._id === id);
+                  return (
+                    <span key={id} className="member-chip">
+                      <div className="avatar-circle avatar-sm avatar-dark">
+                        {user.username.charAt(0).toUpperCase()}
+                      </div>
+                      {user.username}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => removeMember(id)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
             )}
-            {dropdownOpen && search.trim() && filteredUsers.length === 0 && (
-              <div className="member-dropdown member-dropdown-empty">No users found</div>
+          </Form.Group>
+
+          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
+
+          <div className="d-flex gap-2">
+            <Button variant="primary" type="submit" className="flex-grow-1">
+              Create Group
+            </Button>
+            {onCancel && (
+              <Button variant="secondary" type="button" className="flex-grow-1" onClick={onCancel}>
+                Cancel
+              </Button>
             )}
           </div>
-          {errors.members && <span className="form-error">{errors.members}</span>}
-
-          {selectedMembers.length > 0 && (
-            <div className="selected-chips">
-              {selectedMembers.map((id) => {
-                const user = users.find((u) => u._id === id);
-                return (
-                  <span key={id} className="member-chip">
-                    <div className="avatar-circle avatar-sm avatar-dark">
-                      {user.username.charAt(0).toUpperCase()}
-                    </div>
-                    {user.username}
-                    <button
-                      type="button"
-                      className="chip-remove"
-                      onClick={() => removeMember(id)}
-                    >✕</button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {successMsg && <div className="success-msg">{successMsg}</div>}
-
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">Create Group</button>
-          {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-        </div>
-      </form>
-    </div>
+        </Form>
+      </Card.Body>
+    </Card>
   );
 }

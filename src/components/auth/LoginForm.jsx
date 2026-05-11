@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Form, Button, Card, Alert } from "react-bootstrap";
 import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,50 +45,58 @@ export default function LoginForm({ onSwitchToRegister }) {
   };
 
   return (
-    <div className="card auth-card">
-      <h2 className="auth-title">Welcome Back</h2>
-      <p className="auth-subtitle">Sign in to your Bill Bloom account</p>
+    <Card className="auth-card">
+      <Card.Body>
+        <Card.Title className="auth-title">Welcome Back</Card.Title>
+        <p className="auth-subtitle">Sign in to your Bill Bloom account</p>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label className="form-label" htmlFor="login-email">Email</label>
-          <input
-            id="login-email"
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="you@example.com"
-            className={`form-input${errors.email ? " error" : ""}`}
-          />
-          {errors.email && <span className="form-error">{errors.email}</span>}
-        </div>
+        <Form onSubmit={handleSubmit} noValidate>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="login-email">Email</Form.Label>
+            <Form.Control
+              id="login-email"
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              isInvalid={!!errors.email}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.email}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            type="password"
-            name="password"
-            value={form.password}
-            onChange={handleChange}
-            placeholder="Minimum 6 characters"
-            className={`form-input${errors.password ? " error" : ""}`}
-          />
-          {errors.password && <span className="form-error">{errors.password}</span>}
-        </div>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="login-password">Password</Form.Label>
+            <Form.Control
+              id="login-password"
+              type="password"
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="Minimum 6 characters"
+              isInvalid={!!errors.password}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.password}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        {successMsg && <div className="success-msg">{successMsg}</div>}
+          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
 
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">Sign In</button>
-        </div>
-      </form>
+          <Button variant="primary" type="submit" className="w-100">
+            Sign In
+          </Button>
+        </Form>
 
-      <p className="auth-switch">
-        Don&apos;t have an account?{" "}
-        <button className="btn-link" onClick={onSwitchToRegister}>Register here</button>
-      </p>
-    </div>
+        <p className="auth-switch">
+          Don&apos;t have an account?{" "}
+          <Button variant="link" className="p-0 align-baseline" onClick={onSwitchToRegister}>
+            Register here
+          </Button>
+        </p>
+      </Card.Body>
+    </Card>
   );
 }

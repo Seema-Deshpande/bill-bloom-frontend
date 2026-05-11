@@ -1,12 +1,16 @@
 import { useState } from "react";
+import { Form, Button, Card, Row, Col, Alert } from "react-bootstrap";
 import "../../App.css";
 import { expenseCategories } from "../../data/dummyData";
 
 export default function GroupExpenseForm({ members = [], onSubmit, onCancel }) {
   const [form, setForm] = useState({
-    amount: "", category: "", description: "",
+    amount: "",
+    category: "",
+    description: "",
     date: new Date().toISOString().split("T")[0],
-    paidBy: "", participants: [],
+    paidBy: "",
+    participants: [],
   });
   const [errors, setErrors] = useState({});
 
@@ -17,10 +21,11 @@ export default function GroupExpenseForm({ members = [], onSubmit, onCancel }) {
     } else if (isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
       newErrors.amount = "Amount must be greater than 0.";
     }
-    if (!form.category)             newErrors.category     = "Please select a category.";
-    if (!form.paidBy)               newErrors.paidBy       = "Please select who paid.";
-    if (form.participants.length < 2) newErrors.participants = "Select at least 2 participants.";
-    if (!form.date)                 newErrors.date         = "Date is required.";
+    if (!form.category) newErrors.category = "Please select a category.";
+    if (!form.paidBy) newErrors.paidBy = "Please select who paid.";
+    if (form.participants.length < 2)
+      newErrors.participants = "Select at least 2 participants.";
+    if (!form.date) newErrors.date = "Date is required.";
     return newErrors;
   };
 
@@ -43,105 +48,206 @@ export default function GroupExpenseForm({ members = [], onSubmit, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) { setErrors(validationErrors); return; }
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     const payload = {
-      amount: Number(form.amount), category: form.category,
-      description: form.description.trim(), date: form.date,
-      paidBy: form.paidBy, participants: form.participants, splitType: "equal",
+      amount: Number(form.amount),
+      category: form.category,
+      description: form.description.trim(),
+      date: form.date,
+      paidBy: form.paidBy,
+      participants: form.participants,
+      splitType: "equal",
     };
     console.log("Group expense data:", payload);
     onSubmit && onSubmit(payload);
-    setForm({ amount: "", category: "", description: "", date: new Date().toISOString().split("T")[0], paidBy: "", participants: [] });
+    setForm({
+      amount: "",
+      category: "",
+      description: "",
+      date: new Date().toISOString().split("T")[0],
+      paidBy: "",
+      participants: [],
+    });
     setErrors({});
   };
 
-  const perHead = form.participants.length >= 2 && Number(form.amount) > 0
-    ? (Number(form.amount) / form.participants.length).toFixed(2)
-    : null;
+  const perHead =
+    form.participants.length >= 2 && Number(form.amount) > 0
+      ? (Number(form.amount) / form.participants.length).toFixed(2)
+      : null;
 
   return (
-    <div className="card">
-      <div className="section-header">
-        <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>Add Group Expense</h3>
-        {onCancel && <button className="btn-icon" onClick={onCancel}>✕</button>}
-      </div>
+    <Card>
+      <Card.Header className="d-flex justify-content-between align-items-center">
+        <Card.Title className="mb-0">Add Group Expense</Card.Title>
+        {onCancel && (
+          <Button variant="link" size="sm" className="p-0" onClick={onCancel}>
+            ✕
+          </Button>
+        )}
+      </Card.Header>
+      <Card.Body>
+        <Form onSubmit={handleSubmit} noValidate>
+          <Row className="mb-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="ge-amount">Amount (₹)</Form.Label>
+                <Form.Control
+                  id="ge-amount"
+                  type="number"
+                  name="amount"
+                  min="0.01"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={handleChange}
+                  placeholder="e.g. 1500"
+                  isInvalid={!!errors.amount}
+                />
+                <Form.Control.Feedback type="invalid">
+                  {errors.amount}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="ge-category">Category</Form.Label>
+                <Form.Select
+                  id="ge-category"
+                  name="category"
+                  value={form.category}
+                  onChange={handleChange}
+                  isInvalid={!!errors.category}
+                >
+                  <option value="">Select category</option>
+                  {expenseCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Control.Feedback type="invalid">
+                  {errors.category}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+          </Row>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-row">
-          <div className="form-field">
-            <label className="form-label" htmlFor="ge-amount">Amount (₹)</label>
-            <input id="ge-amount" type="number" name="amount" min="0.01" step="0.01"
-              value={form.amount} onChange={handleChange} placeholder="e.g. 1500"
-              className={`form-input${errors.amount ? " error" : ""}`} />
-            {errors.amount && <span className="form-error">{errors.amount}</span>}
-          </div>
-          <div className="form-field">
-            <label className="form-label" htmlFor="ge-category">Category</label>
-            <select id="ge-category" name="category" value={form.category}
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="ge-desc">Description</Form.Label>
+            <Form.Control
+              id="ge-desc"
+              type="text"
+              name="description"
+              value={form.description}
               onChange={handleChange}
-              className={`form-input${errors.category ? " error" : ""}`}>
-              <option value="">Select category</option>
-              {expenseCategories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            {errors.category && <span className="form-error">{errors.category}</span>}
-          </div>
-        </div>
+              placeholder="e.g. Beach shack dinner"
+            />
+          </Form.Group>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="ge-desc">Description</label>
-          <input id="ge-desc" type="text" name="description" value={form.description}
-            onChange={handleChange} placeholder="e.g. Beach shack dinner"
-            className="form-input" />
-        </div>
+          <Row className="mb-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="ge-date">Date</Form.Label>
+                <Form.Control
+                  id="ge-date"
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  isInvalid={!!errors.date}
+                />
+                <Form.Control.Feedback type="invalid">
+                  {errors.date}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="ge-paidby">Paid By</Form.Label>
+                <Form.Select
+                  id="ge-paidby"
+                  name="paidBy"
+                  value={form.paidBy}
+                  onChange={handleChange}
+                  isInvalid={!!errors.paidBy}
+                >
+                  <option value="">Who paid?</option>
+                  {members.map((m) => (
+                    <option key={m._id} value={m._id}>
+                      {m.username}
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Control.Feedback type="invalid">
+                  {errors.paidBy}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+          </Row>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="ge-date">Date</label>
-          <input id="ge-date" type="date" name="date" value={form.date}
-            onChange={handleChange}
-            className={`form-input${errors.date ? " error" : ""}`} />
-          {errors.date && <span className="form-error">{errors.date}</span>}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label" htmlFor="ge-paidby">Paid By</label>
-          <select id="ge-paidby" name="paidBy" value={form.paidBy}
-            onChange={handleChange}
-            className={`form-input${errors.paidBy ? " error" : ""}`}>
-            <option value="">Who paid?</option>
-            {members.map((m) => <option key={m._id} value={m._id}>{m.username}</option>)}
-          </select>
-          {errors.paidBy && <span className="form-error">{errors.paidBy}</span>}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label">
-            Participants <span className="label-hint">(select at least 2)</span>
-          </label>
-          <div className={`participant-list${errors.participants ? " error" : ""}`}>
-            {members.map((member) => (
-              <label key={member._id} className="participant-item">
-                <input type="checkbox" checked={form.participants.includes(member._id)}
+          <Form.Group className="mb-3">
+            <Form.Label>
+              Participants <small className="text-muted">(select at least 2)</small>
+            </Form.Label>
+            <div
+              className={`participant-list${
+                errors.participants ? " border-danger" : ""
+              }`}
+            >
+              {members.map((member) => (
+                <Form.Check
+                  key={member._id}
+                  type="checkbox"
+                  id={`participant-${member._id}`}
+                  label={
+                    <div className="d-flex align-items-center gap-2 flex-grow-1">
+                      <div className="avatar-circle avatar-sm avatar-dark">
+                        {member.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="participant-name">{member.username}</span>
+                      {form.participants.includes(member._id) && perHead && (
+                        <span className="split-amount ms-auto">₹{perHead}</span>
+                      )}
+                    </div>
+                  }
+                  checked={form.participants.includes(member._id)}
                   onChange={() => toggleParticipant(member._id)}
-                  style={{ accentColor: "#e94560" }} />
-                <div className="avatar-circle avatar-sm avatar-dark">
-                  {member.username.charAt(0).toUpperCase()}
-                </div>
-                <span className="participant-name">{member.username}</span>
-                {form.participants.includes(member._id) && perHead && (
-                  <span className="split-amount">₹{perHead}</span>
-                )}
-              </label>
-            ))}
-          </div>
-          {errors.participants && <span className="form-error">{errors.participants}</span>}
-          {perHead && <p className="split-info">Split equally: ₹{perHead} per person</p>}
-        </div>
+                  className="participant-item p-2"
+                />
+              ))}
+            </div>
+            {errors.participants && (
+              <Form.Control.Feedback type="invalid" className="d-block">
+                {errors.participants}
+              </Form.Control.Feedback>
+            )}
+            {perHead && (
+              <Alert variant="info" className="mt-2 mb-0">
+                <small>Split equally: ₹{perHead} per person</small>
+              </Alert>
+            )}
+          </Form.Group>
 
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">Add Expense</button>
-          {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-        </div>
-      </form>
-    </div>
+          <div className="d-flex gap-2">
+            <Button variant="primary" type="submit" className="flex-grow-1">
+              Add Expense
+            </Button>
+            {onCancel && (
+              <Button
+                variant="secondary"
+                type="button"
+                className="flex-grow-1"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        </Form>
+      </Card.Body>
+    </Card>
   );
 }

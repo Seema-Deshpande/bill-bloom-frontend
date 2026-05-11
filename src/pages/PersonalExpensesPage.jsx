@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "../App.css";
 import PersonalExpenseForm from "../components/expenses/PersonalExpenseForm";
+import PersonalExpenseLedger from "../components/expenses/PersonalExpenseLedger";
 import { personalExpenses as initialExpenses } from "../data/dummyData";
 
 
@@ -11,6 +12,10 @@ export default function PersonalExpensesPage() {
   const handleAddExpense = (data) => {
     setExpenses((prev) => [{ _id: `pe${Date.now()}`, userId: "u1", ...data, createdAt: new Date().toISOString() }, ...prev]);
     setShowForm(false);
+  };
+
+  const handleDeleteExpense = (expenseId) => {
+    setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
   };
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -42,10 +47,7 @@ export default function PersonalExpensesPage() {
 
       <div className="section">
         <h3 className="section-title">Personal Expense Ledger</h3>
-        <div className="placeholder-box">
-          <span className="placeholder-icon">📊</span>
-          <p className="placeholder-text">Personal Expense Ledger will be available in the next update.</p>
-        </div>
+        <PersonalExpenseLedger expenses={expenses} onDelete={handleDeleteExpense} />
       </div>
     </div>
   );

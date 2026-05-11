@@ -1,21 +1,109 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import "../App.css";
-import { getUserById } from "../data/dummyData";
+import { getUserById, groupExpenses } from "../data/dummyData";
 import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
+import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
+import SettlementSummary from "../components/expenses/SettlementSummary";
 
 export default function GroupDetailPage({ group, onBack }) {
+  const [expenses, setExpenses] = useState(groupExpenses);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+
+  const creator = useMemo(() => group ? getUserById(group.creator) : null, [group]);
+  const currentUserId = "u1"; // This would be from auth in real app
+  const isGroupCreator = group?.creator === currentUserId;
+  const members = useMemo(() => group ? group.members.map((id) => getUserById(id)).filter(Boolean) : [], [group]);
+
+  const calculateSettlements = (groupExpenses, groupMembers) => {
+    // 1. Calculate net balance for each member
+    const balances = {};
+    groupMembers.forEach(member => {
+      balances[member._id] = 0;
+    });
+
+    groupExpenses.forEach(expense => {
+      const { amount, paidBy, participants } = expense;
+      const share = amount / participants.length;
+
+      // PaidBy gets back money
+      if (balances[paidBy] !== undefined) {
+        balances[paidBy] += amount;
+      }
+
+      // Participants owe money
+      participants.forEach(participantId => {
+        if (balances[participantId] !== undefined) {
+          balances[participantId] -= share;
+        }
+      });
+    });
+
+    // 2. Separate into creditors and debtors
+    const creditors = [];
+    const debtors = [];
+
+    Object.keys(balances).forEach(userId => {
+      const amount = balances[userId];
+      if (amount > 0.01) {
+        creditors.push({ userId, amount });
+      } else if (amount < -0.01) {
+        debtors.push({ userId, amount: Math.abs(amount) });
+      }
+    });
+
+    // 3. Match debtors and creditors (Greedy algorithm for minimum transactions)
+    const settlements = [];
+    let i = 0; // debtor index
+    let j = 0; // creditor index
+
+    while (i < debtors.length && j < creditors.length) {
+      const debtor = debtors[i];
+      const creditor = creditors[j];
+      const settlementAmount = Math.min(debtor.amount, creditor.amount);
+
+      settlements.push({
+        from: getUserById(debtor.userId),
+        to: getUserById(creditor.userId),
+        amount: settlementAmount
+      });
+
+      debtor.amount -= settlementAmount;
+      creditor.amount -= settlementAmount;
+
+      if (debtor.amount <= 0.01) i++;
+      if (creditor.amount <= 0.01) j++;
+    }
+
+    return settlements;
+  };
+
+  const groupSettlements = useMemo(() => {
+    if (!group) return [];
+    return calculateSettlements(expenses.filter(e => e.groupId === group._id), members);
+  }, [expenses, group, members]);
 
   if (!group) {
     return <div className="empty-state"><p>No group selected.</p></div>;
   }
 
-  const creator = getUserById(group.creator);
-  const members = group.members.map((id) => getUserById(id)).filter(Boolean);
-
   const handleAddExpense = (expenseData) => {
-    console.log("Group expense submitted:", expenseData);
+    const newExpense = {
+      _id: `ge${Date.now()}`,
+      groupId: group._id,
+      ...expenseData,
+      createdAt: new Date().toISOString(),
+    };
+    setExpenses((prev) => [newExpense, ...prev]);
     setShowExpenseForm(false);
+  };
+
+  const handleDeleteExpense = (expenseId) => {
+    setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
+  };
+
+  const handlePay = (settlement) => {
+    alert(`Settling ₹${settlement.amount.toFixed(2)} to ${settlement.to.username}`);
+    // In a real app, this would trigger an API call to record the settlement
   };
 
   return (
@@ -60,8 +148,16 @@ export default function GroupDetailPage({ group, onBack }) {
       </div>
 
       <div className="section">
+        <SettlementSummary 
+          settlements={groupSettlements} 
+          currentUserId={currentUserId} 
+          onPay={handlePay} 
+        />
+      </div>
+
+      <div className="section">
         <div className="section-header">
-          <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>Add Group Expense</h3>
+          <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>📁 Expense Ledger</h3>
           <button
             className={showExpenseForm ? "btn-danger" : "btn-primary"}
             style={{ width: "auto" }}
@@ -73,14 +169,13 @@ export default function GroupDetailPage({ group, onBack }) {
         {showExpenseForm && (
           <GroupExpenseForm members={members} onSubmit={handleAddExpense} onCancel={() => setShowExpenseForm(false)} />
         )}
-      </div>
-
-      <div className="section">
-        <h3 className="section-title">Expense Ledger</h3>
-        <div className="placeholder-box">
-          <span className="placeholder-icon">📒</span>
-          <p className="placeholder-text">Expense Ledger will be available in the next update.</p>
-        </div>
+        <GroupExpenseLedger
+          groupId={group._id}
+          expenses={expenses}
+          members={members}
+          isGroupCreator={isGroupCreator}
+          onDelete={handleDeleteExpense}
+        />
       </div>
     </div>
   );

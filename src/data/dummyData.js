@@ -131,6 +131,18 @@ export const groupExpenses = [
     createdAt: "2024-03-06T07:00:00.000Z",
   },
   {
+    _id: "ge5",
+    groupId: "g1",
+    amount: 3000,
+    category: "Entertainment",
+    description: "Water sports activity",
+    date: "2024-03-07",
+    paidBy: "u3",
+    participants: ["u1", "u2", "u3"],
+    splitType: "equal",
+    createdAt: "2024-03-07T10:00:00.000Z",
+  },
+  {
     _id: "ge3",
     groupId: "g2",
     amount: 2200,

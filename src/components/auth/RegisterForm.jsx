@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Form, Button, Card, Alert } from "react-bootstrap";
 import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,6 +48,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
       setErrors(validationErrors);
       return;
     }
+    // eslint-disable-next-line no-unused-vars
     const { confirmPassword, ...dataToLog } = form;
     console.log("Register form data:", dataToLog);
     setSuccessMsg("Registration successful! Redirecting to login...");
@@ -59,54 +61,90 @@ export default function RegisterForm({ onSwitchToLogin }) {
   };
 
   return (
-    <div className="card auth-card">
-      <h2 className="auth-title">Create Account</h2>
-      <p className="auth-subtitle">Join Bill Bloom and manage your expenses</p>
+    <Card className="auth-card">
+      <Card.Body>
+        <Card.Title className="auth-title">Create Account</Card.Title>
+        <p className="auth-subtitle">Join Bill Bloom and manage your expenses</p>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label className="form-label" htmlFor="reg-username">Username</label>
-          <input id="reg-username" type="text" name="username" value={form.username}
-            onChange={handleChange} placeholder="e.g. alice_wonder"
-            className={`form-input${errors.username ? " error" : ""}`} />
-          {errors.username && <span className="form-error">{errors.username}</span>}
-        </div>
+        <Form onSubmit={handleSubmit} noValidate>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="reg-username">Username</Form.Label>
+            <Form.Control
+              id="reg-username"
+              type="text"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              placeholder="e.g. alice_wonder"
+              isInvalid={!!errors.username}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.username}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="reg-email">Email</label>
-          <input id="reg-email" type="email" name="email" value={form.email}
-            onChange={handleChange} placeholder="you@example.com"
-            className={`form-input${errors.email ? " error" : ""}`} />
-          {errors.email && <span className="form-error">{errors.email}</span>}
-        </div>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="reg-email">Email</Form.Label>
+            <Form.Control
+              id="reg-email"
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              isInvalid={!!errors.email}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.email}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="reg-password">Password</label>
-          <input id="reg-password" type="password" name="password" value={form.password}
-            onChange={handleChange} placeholder="Minimum 6 characters"
-            className={`form-input${errors.password ? " error" : ""}`} />
-          {errors.password && <span className="form-error">{errors.password}</span>}
-        </div>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="reg-password">Password</Form.Label>
+            <Form.Control
+              id="reg-password"
+              type="password"
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="Minimum 6 characters"
+              isInvalid={!!errors.password}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.password}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="reg-confirm">Confirm Password</label>
-          <input id="reg-confirm" type="password" name="confirmPassword" value={form.confirmPassword}
-            onChange={handleChange} placeholder="Re-enter your password"
-            className={`form-input${errors.confirmPassword ? " error" : ""}`} />
-          {errors.confirmPassword && <span className="form-error">{errors.confirmPassword}</span>}
-        </div>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="reg-confirm">Confirm Password</Form.Label>
+            <Form.Control
+              id="reg-confirm"
+              type="password"
+              name="confirmPassword"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              placeholder="Re-enter your password"
+              isInvalid={!!errors.confirmPassword}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.confirmPassword}
+            </Form.Control.Feedback>
+          </Form.Group>
 
-        {successMsg && <div className="success-msg">{successMsg}</div>}
+          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
 
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">Create Account</button>
-        </div>
-      </form>
+          <Button variant="primary" type="submit" className="w-100">
+            Create Account
+          </Button>
+        </Form>
 
-      <p className="auth-switch">
-        Already have an account?{" "}
-        <button className="btn-link" onClick={onSwitchToLogin}>Sign in</button>
-      </p>
-    </div>
+        <p className="auth-switch">
+          Already have an account?{" "}
+          <Button variant="link" className="p-0 align-baseline" onClick={onSwitchToLogin}>
+            Sign in
+          </Button>
+        </p>
+      </Card.Body>
+    </Card>
   );
 }

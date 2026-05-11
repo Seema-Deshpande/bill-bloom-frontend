@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Form, Button, Card, Row, Col } from "react-bootstrap";
 import "../../App.css";
 import { expenseCategories } from "../../data/dummyData";
 
@@ -19,7 +20,7 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
       newErrors.amount = "Amount must be greater than 0.";
     }
     if (!form.category) newErrors.category = "Please select a category.";
-    if (!form.date)     newErrors.date     = "Date is required.";
+    if (!form.date) newErrors.date = "Date is required.";
     return newErrors;
   };
 
@@ -32,7 +33,10 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) { setErrors(validationErrors); return; }
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     const payload = {
       amount: Number(form.amount),
       category: form.category,
@@ -46,53 +50,100 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
   };
 
   return (
-    <div className="card">
-      <div className="section-header">
-        <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>Add Personal Expense</h3>
-        {onCancel && <button className="btn-icon" onClick={onCancel}>✕</button>}
-      </div>
+    <Card>
+      <Card.Header className="d-flex justify-content-between align-items-center">
+        <Card.Title className="mb-0">Add Personal Expense</Card.Title>
+        {onCancel && (
+          <Button variant="link" size="sm" className="p-0" onClick={onCancel}>
+            ✕
+          </Button>
+        )}
+      </Card.Header>
+      <Card.Body>
+        <Form onSubmit={handleSubmit} noValidate>
+          <Row className="mb-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="pe-amount">Amount (₹)</Form.Label>
+                <Form.Control
+                  id="pe-amount"
+                  type="number"
+                  name="amount"
+                  min="0.01"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={handleChange}
+                  placeholder="e.g. 500"
+                  isInvalid={!!errors.amount}
+                />
+                <Form.Control.Feedback type="invalid">
+                  {errors.amount}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label htmlFor="pe-category">Category</Form.Label>
+                <Form.Select
+                  id="pe-category"
+                  name="category"
+                  value={form.category}
+                  onChange={handleChange}
+                  isInvalid={!!errors.category}
+                >
+                  <option value="">Select category</option>
+                  {expenseCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Control.Feedback type="invalid">
+                  {errors.category}
+                </Form.Control.Feedback>
+              </Form.Group>
+            </Col>
+          </Row>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-row">
-          <div className="form-field">
-            <label className="form-label" htmlFor="pe-amount">Amount (₹)</label>
-            <input id="pe-amount" type="number" name="amount" min="0.01" step="0.01"
-              value={form.amount} onChange={handleChange} placeholder="e.g. 500"
-              className={`form-input${errors.amount ? " error" : ""}`} />
-            {errors.amount && <span className="form-error">{errors.amount}</span>}
-          </div>
-          <div className="form-field">
-            <label className="form-label" htmlFor="pe-category">Category</label>
-            <select id="pe-category" name="category" value={form.category}
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="pe-desc">Description</Form.Label>
+            <Form.Control
+              id="pe-desc"
+              type="text"
+              name="description"
+              value={form.description}
               onChange={handleChange}
-              className={`form-input${errors.category ? " error" : ""}`}>
-              <option value="">Select category</option>
-              {expenseCategories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            {errors.category && <span className="form-error">{errors.category}</span>}
+              placeholder="What did you spend on?"
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="pe-date">Date</Form.Label>
+            <Form.Control
+              id="pe-date"
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              isInvalid={!!errors.date}
+            />
+            <Form.Control.Feedback type="invalid">
+              {errors.date}
+            </Form.Control.Feedback>
+          </Form.Group>
+
+          <div className="d-flex gap-2">
+            <Button variant="primary" type="submit" className="flex-grow-1">
+              Add Expense
+            </Button>
+            {onCancel && (
+              <Button variant="secondary" type="button" className="flex-grow-1" onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
           </div>
-        </div>
-
-        <div className="form-field">
-          <label className="form-label" htmlFor="pe-desc">Description</label>
-          <input id="pe-desc" type="text" name="description" value={form.description}
-            onChange={handleChange} placeholder="What did you spend on?"
-            className="form-input" />
-        </div>
-
-        <div className="form-field">
-          <label className="form-label" htmlFor="pe-date">Date</label>
-          <input id="pe-date" type="date" name="date" value={form.date}
-            onChange={handleChange}
-            className={`form-input${errors.date ? " error" : ""}`} />
-          {errors.date && <span className="form-error">{errors.date}</span>}
-        </div>
-
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">Add Expense</button>
-          {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-        </div>
-      </form>
-    </div>
+        </Form>
+      </Card.Body>
+    </Card>
   );
 }
