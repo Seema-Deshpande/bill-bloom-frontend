@@ -1,59 +1,125 @@
-import { useState } from "react";
-import "../App.css";
+import { useState, useEffect } from "react";
+import { Container, Row, Col, Button, Alert, Spinner, Card, Modal } from "react-bootstrap";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import GroupCard from "../components/groups/GroupCard";
 import CreateGroupForm from "../components/groups/CreateGroupForm";
-import { groups as initialGroups } from "../data/dummyData";
+import { groups as rawGroups, groupExpenses, currentUser } from "../data/dummyData";
 
-export default function GroupsPage() {
-  const [groups, setGroups] = useState(initialGroups);
+export default function GroupsPage({ onNavigate }) {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [successAlert, setSuccessAlert] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setGroups(rawGroups.filter((g) => g.members.includes(currentUser._id)));
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleCreateGroup = (payload) => {
     const newGroup = {
       _id: `g${Date.now()}`,
       name: payload.name,
-      creator: "u1",
+      creator: currentUser._id,
       members: payload.memberIds,
       createdAt: new Date().toISOString(),
     };
     setGroups((prev) => [newGroup, ...prev]);
     setShowForm(false);
+    setSuccessAlert(`Group "${payload.name}" created successfully!`);
+    setTimeout(() => setSuccessAlert(""), 3000);
   };
 
-  return (
-    <div className="page-container">
-      <div className="page-header">
-        <div>
-          <h2 className="page-title">My Groups</h2>
-          <p className="page-subtitle">{groups.length} group{groups.length !== 1 ? "s" : ""} in total</p>
+  // Bar chart data: user's share of spending per group
+  const chartData = groups
+    .filter((g) => g.members.includes(currentUser._id))
+    .map((g) => {
+      const expenses = groupExpenses.filter(
+        (e) => e.groupId === g._id && e.participants.includes(currentUser._id)
+      );
+      const total = expenses.reduce((sum, e) => sum + e.amount / e.participants.length, 0);
+      return { name: g.name.length > 12 ? g.name.slice(0, 12) + "…" : g.name, amount: Math.round(total) };
+    });
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <Spinner animation="border" style={{ color: "#e94560" }} />
+          <p className="mt-2 text-muted">Loading groups…</p>
         </div>
-        <button
-          className={showForm ? "btn-danger" : "btn-primary"}
-          style={{ width: "auto" }}
-          onClick={() => setShowForm((prev) => !prev)}
+      </div>
+    );
+  }
+
+  return (
+    <Container fluid="xl" className="py-4">
+      {successAlert && (
+        <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
+          {successAlert}
+        </Alert>
+      )}
+
+      <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+          <h2 className="fw-bold mb-0" style={{ color: "#1a1a2e" }}>My Groups</h2>
+          <p className="text-muted small mb-0">
+            {groups.length} group{groups.length !== 1 ? "s" : ""} in total
+          </p>
+        </div>
+        <Button
+          style={{ backgroundColor: "#e94560", border: "none" }}
+          onClick={() => setShowForm(true)}
         >
-          {showForm ? "✕ Cancel" : "+ New Group"}
-        </button>
+          + New Group
+        </Button>
       </div>
 
-      {showForm && (
-        <div style={{ marginBottom: "28px" }}>
+      {/* Create Group Modal */}
+      <Modal show={showForm} onHide={() => setShowForm(false)} centered>
+        <Modal.Body>
           <CreateGroupForm onSubmit={handleCreateGroup} onCancel={() => setShowForm(false)} />
-        </div>
+        </Modal.Body>
+      </Modal>
+
+      {/* Group spending bar chart */}
+      {chartData.length > 0 && (
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Header className="bg-white border-bottom fw-semibold py-3">
+            📊 Your Spending Across Groups
+          </Card.Header>
+          <Card.Body>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₹${v}`} />
+                <Tooltip formatter={(value) => [`₹${value.toLocaleString("en-IN")}`, "Your Share"]} />
+                <Bar dataKey="amount" fill="#8884d8" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card.Body>
+        </Card>
       )}
 
       {groups.length === 0 ? (
-        <div className="empty-state"><p>No groups yet. Create your first group!</p></div>
+        <Alert variant="info">No groups yet. Create your first group using the button above!</Alert>
       ) : (
-        <div className="groups-grid">
+        <Row className="g-3">
           {groups.map((group) => (
-            <GroupCard
-              key={group._id}
-              group={group}
-            />
+            <Col key={group._id} xs={12} sm={6} lg={4}>
+              <GroupCard
+                group={group}
+                onOpenGroup={(g) => onNavigate && onNavigate("GroupDetail", g)}
+              />
+            </Col>
           ))}
-        </div>
+        </Row>
       )}
-    </div>
+    </Container>
   );
 }
+

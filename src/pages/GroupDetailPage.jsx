@@ -1,90 +1,70 @@
-import { useState, useMemo } from "react";
-import "../App.css";
-import { getUserById, groupExpenses } from "../data/dummyData";
+import { useState, useEffect } from "react";
+import { Container, Row, Col, Card, Button, Spinner, Alert, Modal } from "react-bootstrap";
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { getUserById, groupExpenses as allGroupExpenses, currentUser, computeGroupSettlements } from "../data/dummyData";
 import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
 import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
-import SettlementSummary from "../components/expenses/SettlementSummary";
+import SettlementSummary from "../components/settlements/SettlementSummary";
+import PayConfirmation from "../components/settlements/PayConfirmation";
+
+const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8"];
 
 export default function GroupDetailPage({ group, onBack }) {
-  const [expenses, setExpenses] = useState(groupExpenses);
+  const [loading, setLoading] = useState(true);
+  const [expenses, setExpenses] = useState([]);
+  const [settlements, setSettlements] = useState([]);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [successAlert, setSuccessAlert] = useState("");
+  const [showSettlements, setShowSettlements] = useState(false);
+  const [showSettleConfirm, setShowSettleConfirm] = useState(false);
+  const [completedSettlements, setCompletedSettlements] = useState([]);
 
-  const creator = useMemo(() => group ? getUserById(group.creator) : null, [group]);
-  const currentUserId = "u1"; // This would be from auth in real app
-  const isGroupCreator = group?.creator === currentUserId;
-  const members = useMemo(() => group ? group.members.map((id) => getUserById(id)).filter(Boolean) : [], [group]);
+  useEffect(() => {
+    if (!group) return;
+    const timer = setTimeout(() => {
+      setExpenses(allGroupExpenses.filter((e) => e.groupId === group._id));
+      setSettlements(computeGroupSettlements(group._id));
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [group]);
 
-  const calculateSettlements = (groupExpenses, groupMembers) => {
-    // 1. Calculate net balance for each member
-    const balances = {};
-    groupMembers.forEach(member => {
-      balances[member._id] = 0;
-    });
-
-    groupExpenses.forEach(expense => {
-      const { amount, paidBy, participants } = expense;
-      const share = amount / participants.length;
-
-      // PaidBy gets back money
-      if (balances[paidBy] !== undefined) {
-        balances[paidBy] += amount;
-      }
-
-      // Participants owe money
-      participants.forEach(participantId => {
-        if (balances[participantId] !== undefined) {
-          balances[participantId] -= share;
-        }
-      });
-    });
-
-    // 2. Separate into creditors and debtors
-    const creditors = [];
-    const debtors = [];
-
-    Object.keys(balances).forEach(userId => {
-      const amount = balances[userId];
-      if (amount > 0.01) {
-        creditors.push({ userId, amount });
-      } else if (amount < -0.01) {
-        debtors.push({ userId, amount: Math.abs(amount) });
-      }
-    });
-
-    // 3. Match debtors and creditors (Greedy algorithm for minimum transactions)
-    const settlements = [];
-    let i = 0; // debtor index
-    let j = 0; // creditor index
-
-    while (i < debtors.length && j < creditors.length) {
-      const debtor = debtors[i];
-      const creditor = creditors[j];
-      const settlementAmount = Math.min(debtor.amount, creditor.amount);
-
-      settlements.push({
-        from: getUserById(debtor.userId),
-        to: getUserById(creditor.userId),
-        amount: settlementAmount
-      });
-
-      debtor.amount -= settlementAmount;
-      creditor.amount -= settlementAmount;
-
-      if (debtor.amount <= 0.01) i++;
-      if (creditor.amount <= 0.01) j++;
-    }
-
-    return settlements;
-  };
-
-  const groupSettlements = useMemo(() => {
-    if (!group) return [];
-    return calculateSettlements(expenses.filter(e => e.groupId === group._id), members);
-  }, [expenses, group, members]);
+  // Dependency-based: re-compute settlements when expenses change
+  useEffect(() => {
+    if (!group) return;
+    setSettlements(computeGroupSettlements(group._id));
+  }, [expenses, group]);
 
   if (!group) {
-    return <div className="empty-state"><p>No group selected.</p></div>;
+    return (
+      <Container className="py-5 text-center">
+        <Alert variant="warning">No group selected. Please go back and select a group.</Alert>
+      </Container>
+    );
   }
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <Spinner animation="border" style={{ color: "#e94560" }} />
+          <p className="mt-2 text-muted">Loading group details…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const creator = getUserById(group.creator);
+  const members = group.members.map((id) => getUserById(id)).filter(Boolean);
+  const isGroupCreator = currentUser._id === group.creator;
+
+  // Category pie chart data
+  const categoryMap = expenses.reduce((acc, e) => {
+    acc[e.category] = (acc[e.category] || 0) + e.amount;
+    return acc;
+  }, {});
+  const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
 
   const handleAddExpense = (expenseData) => {
     const newExpense = {
@@ -95,88 +75,182 @@ export default function GroupDetailPage({ group, onBack }) {
     };
     setExpenses((prev) => [newExpense, ...prev]);
     setShowExpenseForm(false);
+    setSuccessAlert("Expense added successfully!");
+    setTimeout(() => setSuccessAlert(""), 3000);
   };
 
   const handleDeleteExpense = (expenseId) => {
     setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
+    setSuccessAlert("Expense deleted.");
+    setTimeout(() => setSuccessAlert(""), 2000);
   };
 
-  const handlePay = (settlement) => {
-    alert(`Settling ₹${settlement.amount.toFixed(2)} to ${settlement.to.username}`);
-    // In a real app, this would trigger an API call to record the settlement
+  const handlePayConfirm = (settlement) => {
+    setSettlements((prev) => prev.filter((s) => s.id !== settlement.id));
+    setCompletedSettlements((prev) => [...prev, { ...settlement, paidAt: new Date().toISOString() }]);
+    setSelectedPayment(null);
+    setSuccessAlert(`Payment of ₹${settlement.amount.toLocaleString("en-IN")} confirmed!`);
+    setTimeout(() => setSuccessAlert(""), 3000);
   };
 
   return (
-    <div className="page-container-md">
+    <Container fluid="xl" className="py-4">
+      {/* Back button */}
       {onBack && (
-        <button className="back-btn" onClick={onBack}>← Back to Groups</button>
+        <Button variant="link" className="mb-3 p-0 text-muted" onClick={onBack}>
+          ← Back to Groups
+        </Button>
       )}
 
-      <div className="detail-header">
-        <div className="detail-icon">{group.name.charAt(0).toUpperCase()}</div>
-        <div>
-          <h2 className="detail-name">{group.name}</h2>
-          <p className="detail-meta">
-            Created by <span className="detail-accent">{creator ? creator.username : "Unknown"}</span>
-            {" · "}
-            <span className="detail-accent">{members.length} members</span>
-          </p>
-          <p className="detail-meta">
-            Created on {new Date(group.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}
-          </p>
-        </div>
-      </div>
+      {successAlert && (
+        <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
+          {successAlert}
+        </Alert>
+      )}
 
-      <div className="section">
-        <h3 className="section-title">Members</h3>
-        <div className="member-grid">
-          {members.map((user) => (
-            <div key={user._id} className="member-card">
-              <div className="avatar-circle avatar-lg avatar-dark">
-                {user.username.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div className="member-card-name">
+      {/* Group header */}
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Body className="p-4">
+          <h3 className="fw-bold mb-1" style={{ color: "#1a1a2e" }}>{group.name}</h3>
+          <p className="text-muted mb-0 small">
+            Created by{" "}
+            <span className="fw-semibold text-dark">{creator?.username || "Unknown"}</span>
+          </p>
+        </Card.Body>
+      </Card>
+
+      {/* Members */}
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Header className="bg-white border-bottom fw-semibold py-3">👥 Members</Card.Header>
+        <Card.Body className="p-3">
+          <Row xs={2} sm={3} md={4} className="g-2">
+            {members.map((user) => (
+              <Col key={user._id}>
+                <div className="border rounded p-2 text-center small fw-semibold">
                   {user.username}
-                  {user._id === group.creator && <span className="creator-badge">Admin</span>}
                 </div>
-                <div className="member-card-email">{user.email}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+              </Col>
+            ))}
+          </Row>
+        </Card.Body>
+      </Card>
 
-      <div className="section">
-        <SettlementSummary 
-          settlements={groupSettlements} 
-          currentUserId={currentUserId} 
-          onPay={handlePay} 
-        />
-      </div>
+      {/* Pie Chart */}
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Header className="bg-white border-bottom fw-semibold py-3">
+          📊 Expense by Category
+        </Card.Header>
+        <Card.Body className="p-3">
+          {pieData.length === 0 ? (
+            <Alert variant="info" className="small">No expenses yet to visualize.</Alert>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={pieData.map((item, index) => ({ ...item, fill: PIE_COLORS[index % PIE_COLORS.length] }))}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  outerRadius={90}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                />
+                <Tooltip formatter={(val) => `₹${val.toLocaleString("en-IN")}`} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card.Body>
+      </Card>
 
-      <div className="section">
-        <div className="section-header">
-          <h3 className="section-title" style={{ margin: 0, border: 0, padding: 0 }}>📁 Expense Ledger</h3>
-          <button
-            className={showExpenseForm ? "btn-danger" : "btn-primary"}
-            style={{ width: "auto" }}
-            onClick={() => setShowExpenseForm((prev) => !prev)}
+      {/* Settlements */}
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Body className="p-3 d-flex flex-column align-items-start gap-3">
+          <Button
+            variant="danger"
+            style={{ backgroundColor: "#e94560", border: "none" }}
+            onClick={() => setShowSettleConfirm(true)}
           >
-            {showExpenseForm ? "✕ Cancel" : "+ Add Expense"}
-          </button>
-        </div>
-        {showExpenseForm && (
-          <GroupExpenseForm members={members} onSubmit={handleAddExpense} onCancel={() => setShowExpenseForm(false)} />
-        )}
-        <GroupExpenseLedger
-          groupId={group._id}
-          expenses={expenses}
-          members={members}
-          isGroupCreator={isGroupCreator}
-          onDelete={handleDeleteExpense}
-        />
-      </div>
-    </div>
+            💰 Make Final Settlement
+          </Button>
+          {showSettlements && (
+            <div className="w-100">
+              <SettlementSummary
+                settlements={settlements}
+                completedSettlements={completedSettlements}
+                onPay={(s) => setSelectedPayment(s)}
+              />
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+
+      {/* Settle Confirm Modal */}
+      <Modal show={showSettleConfirm} onHide={() => setShowSettleConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Settlement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to finalize settlements for this group? This will display the full settlement summary.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowSettleConfirm(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            style={{ backgroundColor: "#e94560", border: "none" }}
+            onClick={() => {
+              setShowSettleConfirm(false);
+              setShowSettlements(true);
+            }}
+          >
+            Settle Now
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Expense Ledger - Full Width */}
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Header className="bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+          <span className="fw-semibold">📒 Expense Ledger</span>
+          <Button
+            size="sm"
+            style={{ backgroundColor: "#e94560", border: "none" }}
+            onClick={() => setShowExpenseForm(true)}
+          >
+            + Add Expense
+          </Button>
+        </Card.Header>
+        <Card.Body className="p-3">
+          <GroupExpenseLedger
+            expenses={expenses}
+            members={members}
+            isGroupCreator={isGroupCreator}
+            onDelete={handleDeleteExpense}
+          />
+        </Card.Body>
+      </Card>
+
+      {/* Add Expense Modal */}
+      <Modal show={showExpenseForm} onHide={() => setShowExpenseForm(false)} centered>
+        <Modal.Body>
+          <GroupExpenseForm
+            members={members}
+            onSubmit={handleAddExpense}
+            onCancel={() => setShowExpenseForm(false)}
+          />
+        </Modal.Body>
+      </Modal>
+
+      {/* Pay Confirmation Modal */}
+      <PayConfirmation
+        settlement={selectedPayment}
+        onConfirm={handlePayConfirm}
+        onCancel={() => setSelectedPayment(null)}
+      />
+    </Container>
   );
 }
+

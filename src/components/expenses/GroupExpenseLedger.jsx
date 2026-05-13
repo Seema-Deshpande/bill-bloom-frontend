@@ -1,129 +1,121 @@
-import { Table, Button } from "react-bootstrap";
-import "../../App.css";
+import { useState } from "react";
+import { Table, Button, Badge, Alert } from "react-bootstrap";
 import { getUserById } from "../../data/dummyData";
 
-export default function GroupExpenseLedger({ groupId, expenses, members, isGroupCreator, onDelete }) {
-  const filteredExpenses = expenses.filter((e) => e.groupId === groupId);
+export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteExpense }) {
+  const [deletingId, setDeletingId] = useState(null);
 
-  if (filteredExpenses.length === 0) {
+  if (!expenses || expenses.length === 0) {
     return (
-      <div className="empty-state">
-        <p>No expenses yet. Add an expense to get started!</p>
-      </div>
+      <Alert variant="info" className="mt-2">
+        No group expenses recorded yet. Add the first expense!
+      </Alert>
     );
   }
 
-  const handleDelete = (expenseId) => {
-    if (confirm("Are you sure you want to delete this expense?")) {
-      onDelete && onDelete(expenseId);
+  const handleDelete = (expense) => {
+    if (window.confirm(`Delete "${expense.description || expense.category}"? This cannot be undone.`)) {
+      setDeletingId(expense._id);
+      onDeleteExpense && onDeleteExpense(expense._id);
+      setTimeout(() => setDeletingId(null), 500);
     }
   };
 
-  // Calculate split amount per person for equal split
-  const calculateSplit = (amount, participantCount) => {
-    return (amount / participantCount).toFixed(2);
+  const categoryColors = {
+    Food: "success",
+    Transport: "primary",
+    Entertainment: "warning",
+    Utilities: "secondary",
+    Healthcare: "danger",
+    Shopping: "info",
+    Travel: "dark",
+    Education: "light",
+    Other: "secondary",
   };
 
-  // Calculate totals for each member
-  const memberTotals = {};
+  // Collect unique participant IDs across all expenses, preserving first-seen order
+  const allParticipantIds = [...new Set(expenses.flatMap((e) => e.participants || []))];
+  const allParticipants = allParticipantIds.map((id) => ({ id, username: getUserById(id)?.username || id }));
 
-  members.forEach((member) => {
-    memberTotals[member._id] = 0;
-  });
-
-  filteredExpenses.forEach((expense) => {
-    const splitPerPerson = calculateSplit(expense.amount, expense.participants.length);
-    expense.participants.forEach((participantId) => {
-      if (Object.prototype.hasOwnProperty.call(memberTotals, participantId)) {
-        memberTotals[participantId] += parseFloat(splitPerPerson);
+  const totalGroupExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalPerParticipant = allParticipants.reduce((acc, p) => {
+    acc[p.id] = expenses.reduce((sum, e) => {
+      if (e.participants?.includes(p.id)) {
+        return sum + e.amount / e.participants.length;
       }
-    });
-  });
+      return sum;
+    }, 0);
+    return acc;
+  }, {});
 
   return (
-    <div className="ledger-wrapper">
-      <Table hover className="expense-table ledger-table">
-        <thead>
-          <tr>
-            <th className="col-index">#</th>
-            <th>Description</th>
-            <th>Amount (₹)</th>
-            <th>Date</th>
-            <th>Paid By</th>
-            {members.map((member) => (
-              <th key={member._id} className="col-participant">
-                {member.username}
-              </th>
-            ))}
-            <th>Category</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredExpenses.map((expense, index) => {
-            const paidByUser = getUserById(expense.paidBy);
-            const splitPerPerson = calculateSplit(expense.amount, expense.participants.length);
-
-            return (
-              <tr key={expense._id}>
-                <td className="col-index">
-                  <strong>{index + 1}</strong>
+    <Table striped bordered hover responsive className="mt-2 align-middle">
+      <thead className="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Description</th>
+          <th>Amount (₹)</th>
+          <th>Date</th>
+          <th>Paid By</th>
+          {allParticipants.map((p) => (
+            <th key={p.id}>{p.username}</th>
+          ))}
+          <th>Category</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {expenses.map((expense, index) => {
+          const paidByUser = getUserById(expense.paidBy);
+          const splitAmount = expense.participants?.length
+            ? (expense.amount / expense.participants.length)
+            : 0;
+          return (
+            <tr key={expense._id} className={deletingId === expense._id ? "table-danger" : ""}>
+              <td className="text-muted">{index + 1}</td>
+              <td>{expense.description || <span className="text-muted">—</span>}</td>
+              <td className="fw-semibold">₹{expense.amount.toLocaleString("en-IN")}</td>
+              <td>{new Date(expense.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+              <td>{paidByUser?.username || "Unknown"}</td>
+              {allParticipants.map((p) => (
+                <td key={p.id} className="text-center">
+                  {expense.participants?.includes(p.id)
+                    ? <span className="fw-semibold">₹{splitAmount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                    : <span className="text-muted">—</span>}
                 </td>
-                <td>
-                  <strong>{expense.description}</strong>
-                </td>
-                <td className="text-accent">₹{expense.amount.toLocaleString("en-IN")}</td>
-                <td>{new Date(expense.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                <td>{paidByUser ? paidByUser.username : "Unknown"}</td>
-                {members.map((member) => (
-                  <td key={member._id} className="col-participant">
-                    {expense.participants.includes(member._id) ? (
-                      <span className="split-amount">₹{splitPerPerson}</span>
-                    ) : (
-                      <span className="split-amount-empty">—</span>
-                    )}
-                  </td>
-                ))}
-                <td>
-                  <span className="badge-category" data-category={expense.category}>
-                    {expense.category}
-                  </span>
-                </td>
-                <td>
-                  {isGroupCreator && (
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      className="btn-outline-delete"
-                      onClick={() => handleDelete(expense._id)}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-          {/* Total Row */}
-          <tr className="total-row">
-            <td colSpan="2" className="text-right">
-              <strong>Total</strong>
-            </td>
-            <td className="total-amount">
-              <strong>₹{filteredExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString("en-IN")}</strong>
-            </td>
-            <td></td>
-            <td></td>
-            {members.map((member) => (
-              <td key={member._id} className="col-participant total-amount">
-                <strong>₹{memberTotals[member._id].toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+              ))}
+              <td>
+                <Badge bg={categoryColors[expense.category] || "secondary"}>
+                  {expense.category}
+                </Badge>
               </td>
-            ))}
-            <td></td>
-            <td></td>
-          </tr>
-        </tbody>
-      </Table>
-    </div>
+              <td>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  disabled={!isGroupCreator}
+                  title={!isGroupCreator ? "Only the group creator can delete expenses" : "Delete expense"}
+                  onClick={() => handleDelete(expense)}
+                >
+                  Delete
+                </Button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+      <tfoot className="table-dark fw-bold">
+        <tr>
+          <td colSpan={2} className="text-end">Total</td>
+          <td colSpan={3}>₹{totalGroupExpense.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+          {allParticipants.map((p) => (
+            <td key={p.id} className="text-center">
+              ₹{totalPerParticipant[p.id].toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+            </td>
+          ))}
+          <td colSpan={2}></td>
+        </tr>
+      </tfoot>
+    </Table>
   );
 }

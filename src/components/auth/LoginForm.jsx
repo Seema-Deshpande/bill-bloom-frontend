@@ -4,7 +4,7 @@ import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginForm({ onSwitchToRegister }) {
+export default function LoginForm({ onSwitchToRegister, onLogin }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
@@ -38,10 +38,17 @@ export default function LoginForm({ onSwitchToRegister }) {
       setErrors(validationErrors);
       return;
     }
-    console.log("Login form data:", { email: form.email, password: form.password });
-    setSuccessMsg("Login successful! Welcome back.");
-    setForm({ email: "", password: "" });
-    setErrors({});
+    
+    if (onLogin) {
+      const success = onLogin(form.email);
+      if (success) {
+        setSuccessMsg("Login successful! Welcome back.");
+        setForm({ email: "", password: "" });
+        setErrors({});
+      } else {
+        setErrors({ email: "User not found with this email." });
+      }
+    }
   };
 
   return (

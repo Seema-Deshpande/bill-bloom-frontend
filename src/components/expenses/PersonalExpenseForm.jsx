@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Form, Button, Card, Row, Col } from "react-bootstrap";
-import "../../App.css";
 import { expenseCategories } from "../../data/dummyData";
 
 export default function PersonalExpenseForm({ onSubmit, onCancel }) {
@@ -20,7 +19,7 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
       newErrors.amount = "Amount must be greater than 0.";
     }
     if (!form.category) newErrors.category = "Please select a category.";
-    if (!form.date) newErrors.date = "Date is required.";
+    if (!form.date)     newErrors.date     = "Date is required.";
     return newErrors;
   };
 
@@ -33,10 +32,7 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+    if (Object.keys(validationErrors).length > 0) { setErrors(validationErrors); return; }
     const payload = {
       amount: Number(form.amount),
       category: form.category,
@@ -50,23 +46,18 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
   };
 
   return (
-    <Card>
-      <Card.Header className="d-flex justify-content-between align-items-center">
-        <Card.Title className="mb-0">Add Personal Expense</Card.Title>
-        {onCancel && (
-          <Button variant="link" size="sm" className="p-0" onClick={onCancel}>
-            ✕
-          </Button>
-        )}
+    <Card className="shadow-sm border-0">
+      <Card.Header className="bg-white d-flex justify-content-between align-items-center border-bottom py-3">
+        <h5 className="mb-0 fw-bold">Add Personal Expense</h5>
+        {onCancel && <Button variant="outline-secondary" size="sm" onClick={onCancel}>✕</Button>}
       </Card.Header>
-      <Card.Body>
+      <Card.Body className="p-4">
         <Form onSubmit={handleSubmit} noValidate>
-          <Row className="mb-3">
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label htmlFor="pe-amount">Amount (₹)</Form.Label>
+          <Row className="g-3 mb-3">
+            <Col xs={12} sm={6}>
+              <Form.Group controlId="pe-amount">
+                <Form.Label className="fw-semibold">Amount (₹)</Form.Label>
                 <Form.Control
-                  id="pe-amount"
                   type="number"
                   name="amount"
                   min="0.01"
@@ -76,16 +67,13 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
                   placeholder="e.g. 500"
                   isInvalid={!!errors.amount}
                 />
-                <Form.Control.Feedback type="invalid">
-                  {errors.amount}
-                </Form.Control.Feedback>
+                <Form.Control.Feedback type="invalid">{errors.amount}</Form.Control.Feedback>
               </Form.Group>
             </Col>
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label htmlFor="pe-category">Category</Form.Label>
+            <Col xs={12} sm={6}>
+              <Form.Group controlId="pe-category">
+                <Form.Label className="fw-semibold">Category</Form.Label>
                 <Form.Select
-                  id="pe-category"
                   name="category"
                   value={form.category}
                   onChange={handleChange}
@@ -93,22 +81,17 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
                 >
                   <option value="">Select category</option>
                   {expenseCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
+                    <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </Form.Select>
-                <Form.Control.Feedback type="invalid">
-                  {errors.category}
-                </Form.Control.Feedback>
+                <Form.Control.Feedback type="invalid">{errors.category}</Form.Control.Feedback>
               </Form.Group>
             </Col>
           </Row>
 
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="pe-desc">Description</Form.Label>
+          <Form.Group className="mb-3" controlId="pe-desc">
+            <Form.Label className="fw-semibold">Description</Form.Label>
             <Form.Control
-              id="pe-desc"
               type="text"
               name="description"
               value={form.description}
@@ -117,27 +100,24 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
             />
           </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="pe-date">Date</Form.Label>
+          <Form.Group className="mb-4" controlId="pe-date">
+            <Form.Label className="fw-semibold">Date</Form.Label>
             <Form.Control
-              id="pe-date"
               type="date"
               name="date"
               value={form.date}
               onChange={handleChange}
               isInvalid={!!errors.date}
             />
-            <Form.Control.Feedback type="invalid">
-              {errors.date}
-            </Form.Control.Feedback>
+            <Form.Control.Feedback type="invalid">{errors.date}</Form.Control.Feedback>
           </Form.Group>
 
           <div className="d-flex gap-2">
-            <Button variant="primary" type="submit" className="flex-grow-1">
+            <Button type="submit" style={{ backgroundColor: "#e94560", border: "none" }}>
               Add Expense
             </Button>
             {onCancel && (
-              <Button variant="secondary" type="button" className="flex-grow-1" onClick={onCancel}>
+              <Button type="button" variant="outline-secondary" onClick={onCancel}>
                 Cancel
               </Button>
             )}
@@ -147,3 +127,4 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
     </Card>
   );
 }
+

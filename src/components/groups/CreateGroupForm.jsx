@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Form, Button, Card, Alert, ListGroup } from "react-bootstrap";
-import "../../App.css";
+import { useState, useRef, useEffect } from "react";
+import { Form, Button, Alert, Card, Badge } from "react-bootstrap";
 import { users } from "../../data/dummyData";
 
 export default function CreateGroupForm({ onSubmit, onCancel }) {
@@ -10,6 +9,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const searchRef = useRef(null);
 
   const filteredUsers = search.trim()
     ? users.filter(
@@ -18,6 +18,16 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
           u.username.toLowerCase().includes(search.trim().toLowerCase())
       )
     : [];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const addMember = (userId) => {
     setSelectedMembers((prev) => [...prev, userId]);
@@ -61,21 +71,24 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
   };
 
   return (
-    <Card>
-      <Card.Header className="d-flex justify-content-between align-items-center">
-        <Card.Title className="mb-0">Create New Group</Card.Title>
+    <Card className="shadow-sm border-0">
+      <Card.Header className="bg-white d-flex justify-content-between align-items-center border-bottom py-3">
+        <h5 className="mb-0 fw-bold">Create New Group</h5>
         {onCancel && (
-          <Button variant="link" size="sm" className="p-0" onClick={onCancel}>
-            ✕
-          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={onCancel}>✕</Button>
         )}
       </Card.Header>
-      <Card.Body>
+      <Card.Body className="p-4">
+        {successMsg && (
+          <Alert variant="success" dismissible onClose={() => setSuccessMsg("")}>
+            {successMsg}
+          </Alert>
+        )}
+
         <Form onSubmit={handleSubmit} noValidate>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="group-name">Group Name</Form.Label>
+          <Form.Group className="mb-3" controlId="group-name">
+            <Form.Label className="fw-semibold">Group Name</Form.Label>
             <Form.Control
-              id="group-name"
               type="text"
               value={name}
               onChange={(e) => {
@@ -85,14 +98,12 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
               placeholder="e.g. Goa Trip 2025"
               isInvalid={!!errors.name}
             />
-            <Form.Control.Feedback type="invalid">
-              {errors.name}
-            </Form.Control.Feedback>
+            <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
           </Form.Group>
 
           <Form.Group className="mb-3">
-            <Form.Label>Add Members</Form.Label>
-            <div className="member-search-wrap position-relative">
+            <Form.Label className="fw-semibold">Add Members</Form.Label>
+            <div className="position-relative" ref={searchRef}>
               <Form.Control
                 type="text"
                 placeholder="Search by username…"
@@ -102,69 +113,84 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
                   setDropdownOpen(true);
                 }}
                 onFocus={() => search.trim() && setDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
                 isInvalid={!!errors.members}
               />
+              <Form.Control.Feedback type="invalid">{errors.members}</Form.Control.Feedback>
+
               {dropdownOpen && filteredUsers.length > 0 && (
-                <ListGroup className="member-dropdown position-absolute w-100">
+                <ul
+                  className="list-unstyled bg-white border rounded shadow-sm position-absolute w-100 mb-0 py-1"
+                  style={{ zIndex: 1000, maxHeight: 180, overflowY: "auto" }}
+                >
                   {filteredUsers.map((user) => (
-                    <ListGroup.Item
+                    <li
                       key={user._id}
-                      className="member-dropdown-item d-flex align-items-center gap-2"
-                      onMouseDown={() => addMember(user._id)}
+                      className="d-flex align-items-center gap-2 px-3 py-2"
                       style={{ cursor: "pointer" }}
+                      onMouseDown={() => addMember(user._id)}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8f9fa")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "")}
                     >
-                      <div className="avatar-circle avatar-sm avatar-dark">
+                      <div
+                        className="d-flex align-items-center justify-content-center rounded-circle text-white fw-bold"
+                        style={{ width: 28, height: 28, backgroundColor: "#1a1a2e", fontSize: 12, flexShrink: 0 }}
+                      >
                         {user.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="member-name">{user.username}</div>
-                        <small className="member-email">{user.email}</small>
+                        <div className="fw-semibold small">{user.username}</div>
+                        <div className="text-muted" style={{ fontSize: "0.75rem" }}>{user.email}</div>
                       </div>
-                    </ListGroup.Item>
+                    </li>
                   ))}
-                </ListGroup>
+                </ul>
               )}
               {dropdownOpen && search.trim() && filteredUsers.length === 0 && (
-                <div className="member-dropdown position-absolute w-100 text-center p-3">
-                  <small className="text-muted">No users found</small>
+                <div className="border rounded bg-white p-2 text-muted small position-absolute w-100" style={{ zIndex: 1000 }}>
+                  No users found
                 </div>
               )}
             </div>
-            {errors.members && <Form.Control.Feedback type="invalid" className="d-block">{errors.members}</Form.Control.Feedback>}
 
             {selectedMembers.length > 0 && (
-              <div className="selected-chips mt-3">
+              <div className="d-flex flex-wrap gap-2 mt-2">
                 {selectedMembers.map((id) => {
                   const user = users.find((u) => u._id === id);
                   return (
-                    <span key={id} className="member-chip">
-                      <div className="avatar-circle avatar-sm avatar-dark">
+                    <Badge
+                      key={id}
+                      bg="light"
+                      text="dark"
+                      className="d-flex align-items-center gap-1 border py-1 px-2"
+                      style={{ fontSize: "0.85rem" }}
+                    >
+                      <span
+                        className="d-inline-flex align-items-center justify-content-center rounded-circle text-white"
+                        style={{ width: 18, height: 18, backgroundColor: "#1a1a2e", fontSize: 9 }}
+                      >
                         {user.username.charAt(0).toUpperCase()}
-                      </div>
+                      </span>
                       {user.username}
                       <button
                         type="button"
-                        className="chip-remove"
+                        className="btn-close ms-1"
+                        style={{ fontSize: "0.5rem" }}
                         onClick={() => removeMember(id)}
-                      >
-                        ✕
-                      </button>
-                    </span>
+                        aria-label="Remove member"
+                      />
+                    </Badge>
                   );
                 })}
               </div>
             )}
           </Form.Group>
 
-          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
-
-          <div className="d-flex gap-2">
-            <Button variant="primary" type="submit" className="flex-grow-1">
+          <div className="d-flex gap-2 mt-4">
+            <Button type="submit" style={{ backgroundColor: "#e94560", border: "none" }}>
               Create Group
             </Button>
             {onCancel && (
-              <Button variant="secondary" type="button" className="flex-grow-1" onClick={onCancel}>
+              <Button type="button" variant="outline-secondary" onClick={onCancel}>
                 Cancel
               </Button>
             )}
@@ -174,3 +200,4 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
     </Card>
   );
 }
+

@@ -34,6 +34,13 @@ export const users = [
     password: "hashed_pass_4",
     createdAt: "2024-02-01T11:00:00.000Z",
   },
+  {
+    _id: "u5",
+    username: "eve_spark",
+    email: "eve@example.com",
+    password: "hashed_pass_5",
+    createdAt: "2024-02-10T12:00:00.000Z",
+  }
 ];
 
 // Logged-in user simulation
@@ -66,6 +73,21 @@ export const groups = [
 
 // ----- PERSONAL EXPENSES -----
 export const personalExpenses = [
+  // January
+  { _id: "pe5", userId: "u1", amount: 2200, category: "Food", description: "Monthly groceries", date: "2024-01-15", createdAt: "2024-01-15T12:00:00.000Z" },
+  { _id: "pe6", userId: "u1", amount: 600, category: "Transport", description: "Monthly bus pass", date: "2024-01-20", createdAt: "2024-01-20T08:00:00.000Z" },
+  { _id: "pe7", userId: "u1", amount: 999, category: "Entertainment", description: "Netflix subscription", date: "2024-01-25", createdAt: "2024-01-25T10:00:00.000Z" },
+  // February
+  { _id: "pe8", userId: "u1", amount: 1800, category: "Food", description: "Restaurant meals", date: "2024-02-14", createdAt: "2024-02-14T12:00:00.000Z" },
+  { _id: "pe9", userId: "u1", amount: 1200, category: "Shopping", description: "Clothes shopping", date: "2024-02-20", createdAt: "2024-02-20T12:00:00.000Z" },
+  { _id: "pe10", userId: "u1", amount: 450, category: "Transport", description: "Auto rickshaws", date: "2024-02-25", createdAt: "2024-02-25T08:00:00.000Z" },
+  // March
+  { _id: "pe11", userId: "u1", amount: 5500, category: "Travel", description: "Goa trip personal expenses", date: "2024-03-05", createdAt: "2024-03-05T12:00:00.000Z" },
+  { _id: "pe12", userId: "u1", amount: 700, category: "Food", description: "Weekly groceries", date: "2024-03-20", createdAt: "2024-03-20T12:00:00.000Z" },
+  // April
+  { _id: "pe13", userId: "u1", amount: 2000, category: "Entertainment", description: "Movie outings", date: "2024-04-08", createdAt: "2024-04-08T12:00:00.000Z" },
+  { _id: "pe14", userId: "u1", amount: 900, category: "Utilities", description: "Phone recharge", date: "2024-04-22", createdAt: "2024-04-22T12:00:00.000Z" },
+  // May — originals
   {
     _id: "pe1",
     userId: "u1",
@@ -102,6 +124,9 @@ export const personalExpenses = [
     date: "2024-05-10",
     createdAt: "2024-05-10T10:00:00.000Z",
   },
+  // June
+  { _id: "pe15", userId: "u1", amount: 1500, category: "Healthcare", description: "Gym membership", date: "2024-06-01", createdAt: "2024-06-01T12:00:00.000Z" },
+  { _id: "pe16", userId: "u1", amount: 800, category: "Food", description: "Weekly groceries", date: "2024-06-15", createdAt: "2024-06-15T12:00:00.000Z" },
 ];
 
 // ----- GROUP EXPENSES -----
@@ -140,7 +165,7 @@ export const groupExpenses = [
     paidBy: "u3",
     participants: ["u1", "u2", "u3"],
     splitType: "equal",
-    createdAt: "2024-03-07T10:00:00.000Z",
+    createdAt: "2024-03-07T14:00:00.000Z",
   },
   {
     _id: "ge3",
@@ -155,6 +180,18 @@ export const groupExpenses = [
     createdAt: "2024-03-31T18:00:00.000Z",
   },
   {
+    _id: "ge7",
+    groupId: "g2",
+    amount: 1500,
+    category: "Food",
+    description: "Grocery shopping",
+    date: "2024-03-15",
+    paidBy: "u2",
+    participants: ["u2", "u3", "u4"],
+    splitType: "equal",
+    createdAt: "2024-03-15T12:00:00.000Z",
+  },
+  {
     _id: "ge4",
     groupId: "g3",
     amount: 1800,
@@ -165,6 +202,18 @@ export const groupExpenses = [
     participants: ["u1", "u2", "u4"],
     splitType: "equal",
     createdAt: "2024-04-15T13:00:00.000Z",
+  },
+  {
+    _id: "ge6",
+    groupId: "g3",
+    amount: 1200,
+    category: "Transport",
+    description: "Office cab sharing",
+    date: "2024-04-20",
+    paidBy: "u2",
+    participants: ["u1", "u2", "u4"],
+    splitType: "equal",
+    createdAt: "2024-04-20T09:00:00.000Z",
   },
 ];
 
@@ -209,4 +258,43 @@ export const getGroupMembers = (groupId) => {
   const group = groups.find((g) => g._id === groupId);
   if (!group) return [];
   return group.members.map((id) => getUserById(id)).filter(Boolean);
+};
+
+// ----- HELPER: compute minimal settlements for a group -----
+export const computeGroupSettlements = (groupId) => {
+  const expenses = groupExpenses.filter((e) => e.groupId === groupId);
+  const owes = {}; // owes[from][to] = amount
+
+  expenses.forEach((exp) => {
+    const share = exp.amount / exp.participants.length;
+    exp.participants.forEach((pid) => {
+      if (pid !== exp.paidBy) {
+        if (!owes[pid]) owes[pid] = {};
+        owes[pid][exp.paidBy] = (owes[pid][exp.paidBy] || 0) + share;
+      }
+    });
+  });
+
+  const settlements = [];
+  const seen = new Set();
+
+  for (const from in owes) {
+    for (const to in owes[from]) {
+      const key = [from, to].sort().join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const fromOwes = (owes[from] && owes[from][to]) || 0;
+      const toOwes = (owes[to] && owes[to][from]) || 0;
+      const net = fromOwes - toOwes;
+
+      if (net > 0.01) {
+        settlements.push({ id: `${from}-${to}`, from, to, amount: Math.round(net) });
+      } else if (net < -0.01) {
+        settlements.push({ id: `${to}-${from}`, from: to, to: from, amount: Math.round(-net) });
+      }
+    }
+  }
+
+  return settlements;
 };
