@@ -1,7 +1,7 @@
 import { ListGroup, Button, Alert, Badge } from "react-bootstrap";
-import { getUserById, currentUser } from "../../data/dummyData";
+import { getUserById } from "../../data/dummyData";
 
-export default function SettlementSummary({ settlements, completedSettlements = [], onPay }) {
+export default function SettlementSummary({ settlements, completedSettlements = [], currentUserId, onPay }) {
   const hasPending = settlements && settlements.length > 0;
   const hasCompleted = completedSettlements.length > 0;
 
@@ -13,7 +13,7 @@ export default function SettlementSummary({ settlements, completedSettlements = 
           {settlements.map((s) => {
             const fromUser = getUserById(s.from);
             const toUser = getUserById(s.to);
-            const isMyOwe = s.from === currentUser._id;
+            const isMyOwe = s.from === currentUserId;
 
             return (
               <ListGroup.Item

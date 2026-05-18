@@ -4,10 +4,9 @@ import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginForm({ onSwitchToRegister, onLogin }) {
+export default function LoginForm({ onSwitchToRegister, onLogin, authError = "", loading = false, infoMessage = "" }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
-  const [successMsg, setSuccessMsg] = useState("");
 
   const validate = () => {
     const newErrors = {};
@@ -28,25 +27,23 @@ export default function LoginForm({ onSwitchToRegister, onLogin }) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-    if (successMsg) setSuccessMsg("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     if (onLogin) {
-      const success = onLogin(form.email);
-      if (success) {
-        setSuccessMsg("Login successful! Welcome back.");
+      try {
+        await onLogin(form.email, form.password);
         setForm({ email: "", password: "" });
         setErrors({});
-      } else {
-        setErrors({ email: "User not found with this email." });
+      } catch {
+        // Auth error is rendered via props.
       }
     }
   };
@@ -56,6 +53,9 @@ export default function LoginForm({ onSwitchToRegister, onLogin }) {
       <Card.Body>
         <Card.Title className="auth-title">Welcome Back</Card.Title>
         <p className="auth-subtitle">Sign in to your Bill Bloom account</p>
+
+        {infoMessage && <Alert variant="success" className="mb-3">{infoMessage}</Alert>}
+        {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">
@@ -90,10 +90,8 @@ export default function LoginForm({ onSwitchToRegister, onLogin }) {
             </Form.Control.Feedback>
           </Form.Group>
 
-          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
-
-          <Button variant="primary" type="submit" className="w-100">
-            Sign In
+          <Button variant="primary" type="submit" className="w-100" disabled={loading}>
+            {loading ? "Signing In..." : "Sign In"}
           </Button>
         </Form>
 

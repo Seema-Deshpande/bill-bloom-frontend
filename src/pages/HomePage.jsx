@@ -1,23 +1,26 @@
 import { useState, useEffect } from "react";
 import { Container, Row, Col, Card, Button, Spinner } from "react-bootstrap";
 import { groups as allGroups, personalExpenses as allPersonalExpenses, groupExpenses, currentUser } from "../data/dummyData";
+import useAuth from "../context/useAuth";
 
 export default function HomePage({ onNavigate }) {
+  const { user } = useAuth();
+  const activeUser = user ?? currentUser;
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const myGroups = allGroups.filter((g) => g.members.includes(currentUser._id));
+      const myGroups = allGroups.filter((g) => g.members.includes(activeUser._id));
       const totalPersonal = allPersonalExpenses
-        .filter((e) => e.userId === currentUser._id)
+        .filter((e) => e.userId === activeUser._id)
         .reduce((sum, e) => sum + e.amount, 0);
       const totalGroup = groupExpenses
-        .filter((e) => e.participants.includes(currentUser._id))
+        .filter((e) => e.participants.includes(activeUser._id))
         .reduce((sum, e) => sum + e.amount / e.participants.length, 0);
 
       const now = new Date();
-      const myPersonal = allPersonalExpenses.filter((e) => e.userId === currentUser._id);
+      const myPersonal = allPersonalExpenses.filter((e) => e.userId === activeUser._id);
       const currentMonthSpent = myPersonal
         .filter((e) => {
           const d = new Date(e.date);
@@ -38,7 +41,7 @@ export default function HomePage({ onNavigate }) {
     }, 800);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [activeUser._id]);
 
   if (loading) {
     return (
@@ -68,7 +71,7 @@ export default function HomePage({ onNavigate }) {
         <div>
           <h1 className="fw-bold mb-1" style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)" }}>
             Welcome back,{" "}
-            <span style={{ color: "#e94560" }}>{currentUser.username}</span> 👋
+            <span style={{ color: "#e94560" }}>{activeUser.username}</span> 👋
           </h1>
           <p className="text-muted mb-3">Track your personal and group expenses in one place.</p>
           <div className="d-flex gap-2 flex-wrap">

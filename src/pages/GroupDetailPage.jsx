@@ -6,10 +6,13 @@ import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
 import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
 import SettlementSummary from "../components/settlements/SettlementSummary";
 import PayConfirmation from "../components/settlements/PayConfirmation";
+import useAuth from "../context/useAuth";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8"];
 
 export default function GroupDetailPage({ group, onBack }) {
+  const { user } = useAuth();
+  const activeUser = user ?? currentUser;
   const [loading, setLoading] = useState(true);
   const [expenses, setExpenses] = useState([]);
   const [settlements, setSettlements] = useState([]);
@@ -24,7 +27,8 @@ export default function GroupDetailPage({ group, onBack }) {
     if (!group) return;
     const timer = setTimeout(() => {
       setExpenses(allGroupExpenses.filter((e) => e.groupId === group._id));
-      setSettlements(computeGroupSettlements(group._id));
+      const newSettlements = computeGroupSettlements(group._id);
+      setSettlements(newSettlements);
       setLoading(false);
     }, 800);
     return () => clearTimeout(timer);
@@ -33,6 +37,7 @@ export default function GroupDetailPage({ group, onBack }) {
   // Dependency-based: re-compute settlements when expenses change
   useEffect(() => {
     if (!group) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSettlements(computeGroupSettlements(group._id));
   }, [expenses, group]);
 
@@ -57,7 +62,7 @@ export default function GroupDetailPage({ group, onBack }) {
 
   const creator = getUserById(group.creator);
   const members = group.members.map((id) => getUserById(id)).filter(Boolean);
-  const isGroupCreator = currentUser._id === group.creator;
+  const isGroupCreator = activeUser._id === group.creator;
 
   // Category pie chart data
   const categoryMap = expenses.reduce((acc, e) => {
@@ -179,6 +184,7 @@ export default function GroupDetailPage({ group, onBack }) {
               <SettlementSummary
                 settlements={settlements}
                 completedSettlements={completedSettlements}
+                currentUserId={activeUser._id}
                 onPay={(s) => setSelectedPayment(s)}
               />
             </div>

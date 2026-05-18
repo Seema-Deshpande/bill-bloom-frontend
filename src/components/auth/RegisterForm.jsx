@@ -4,10 +4,9 @@ import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function RegisterForm({ onSwitchToLogin }) {
+export default function RegisterForm({ onSwitchToLogin, onRegister, authError = "", loading = false }) {
   const [form, setForm] = useState({ username: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState({});
-  const [successMsg, setSuccessMsg] = useState("");
 
   const validate = () => {
     const newErrors = {};
@@ -38,26 +37,28 @@ export default function RegisterForm({ onSwitchToLogin }) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-    if (successMsg) setSuccessMsg("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    // eslint-disable-next-line no-unused-vars
-    const { confirmPassword, ...dataToLog } = form;
-    console.log("Register form data:", dataToLog);
-    setSuccessMsg("Registration successful! Redirecting to login...");
-    setForm({ username: "", email: "", password: "", confirmPassword: "" });
-    setErrors({});
-    setTimeout(() => {
-      setSuccessMsg("");
-      onSwitchToLogin && onSwitchToLogin();
-    }, 2000);
+    if (onRegister) {
+      try {
+        await onRegister({
+          username: form.username,
+          email: form.email,
+          password: form.password,
+        });
+        setForm({ username: "", email: "", password: "", confirmPassword: "" });
+        setErrors({});
+      } catch {
+        // Auth error is rendered via props.
+      }
+    }
   };
 
   return (
@@ -65,6 +66,8 @@ export default function RegisterForm({ onSwitchToLogin }) {
       <Card.Body>
         <Card.Title className="auth-title">Create Account</Card.Title>
         <p className="auth-subtitle">Join Bill Bloom and manage your expenses</p>
+
+        {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">
@@ -131,10 +134,8 @@ export default function RegisterForm({ onSwitchToLogin }) {
             </Form.Control.Feedback>
           </Form.Group>
 
-          {successMsg && <Alert variant="success" className="mb-3">{successMsg}</Alert>}
-
-          <Button variant="primary" type="submit" className="w-100">
-            Create Account
+          <Button variant="primary" type="submit" className="w-100" disabled={loading}>
+            {loading ? "Creating Account..." : "Create Account"}
           </Button>
         </Form>
 

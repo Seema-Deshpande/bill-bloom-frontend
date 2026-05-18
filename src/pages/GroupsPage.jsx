@@ -4,8 +4,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import GroupCard from "../components/groups/GroupCard";
 import CreateGroupForm from "../components/groups/CreateGroupForm";
 import { groups as rawGroups, groupExpenses, currentUser } from "../data/dummyData";
+import useAuth from "../context/useAuth";
 
 export default function GroupsPage({ onNavigate }) {
+  const { user } = useAuth();
+  const activeUser = user ?? currentUser;
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -13,18 +16,18 @@ export default function GroupsPage({ onNavigate }) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setGroups(rawGroups.filter((g) => g.members.includes(currentUser._id)));
+      setGroups(rawGroups.filter((g) => g.members.includes(activeUser._id)));
       setLoading(false);
     }, 800);
     return () => clearTimeout(timer);
-  }, []);
+  }, [activeUser._id]);
 
   const handleCreateGroup = (payload) => {
     const newGroup = {
       _id: `g${Date.now()}`,
       name: payload.name,
-      creator: currentUser._id,
-      members: payload.memberIds,
+      creator: activeUser._id,
+      members: Array.from(new Set([activeUser._id, ...payload.memberIds])),
       createdAt: new Date().toISOString(),
     };
     setGroups((prev) => [newGroup, ...prev]);
@@ -35,10 +38,10 @@ export default function GroupsPage({ onNavigate }) {
 
   // Bar chart data: user's share of spending per group
   const chartData = groups
-    .filter((g) => g.members.includes(currentUser._id))
+    .filter((g) => g.members.includes(activeUser._id))
     .map((g) => {
       const expenses = groupExpenses.filter(
-        (e) => e.groupId === g._id && e.participants.includes(currentUser._id)
+        (e) => e.groupId === g._id && e.participants.includes(activeUser._id)
       );
       const total = expenses.reduce((sum, e) => sum + e.amount / e.participants.length, 0);
       return { name: g.name.length > 12 ? g.name.slice(0, 12) + "…" : g.name, amount: Math.round(total) };

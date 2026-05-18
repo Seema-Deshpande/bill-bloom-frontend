@@ -7,11 +7,14 @@ import {
 import PersonalExpenseForm from "../components/expenses/PersonalExpenseForm";
 import PersonalExpenseLedger from "../components/expenses/PersonalExpenseLedger";
 import { personalExpenses as rawExpenses, currentUser } from "../data/dummyData";
+import useAuth from "../context/useAuth";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8", "#dfe6e9", "#b2bec3"];
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PersonalExpensesPage() {
+  const { user } = useAuth();
+  const activeUser = user ?? currentUser;
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -19,14 +22,14 @@ export default function PersonalExpensesPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setExpenses(rawExpenses.filter((e) => e.userId === currentUser._id));
+      setExpenses(rawExpenses.filter((e) => e.userId === activeUser._id));
       setLoading(false);
     }, 800);
     return () => clearTimeout(timer);
-  }, []);
+  }, [activeUser._id]);
 
   const handleAddExpense = (data) => {
-    const newExpense = { _id: `pe${Date.now()}`, userId: currentUser._id, ...data, createdAt: new Date().toISOString() };
+    const newExpense = { _id: `pe${Date.now()}`, userId: activeUser._id, ...data, createdAt: new Date().toISOString() };
     setExpenses((prev) => [newExpense, ...prev]);
     setShowForm(false);
     setSuccessAlert("Expense added successfully!");
