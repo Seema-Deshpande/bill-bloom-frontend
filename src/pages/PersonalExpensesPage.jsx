@@ -6,40 +6,62 @@ import {
 } from "recharts";
 import PersonalExpenseForm from "../components/expenses/PersonalExpenseForm";
 import PersonalExpenseLedger from "../components/expenses/PersonalExpenseLedger";
-import { personalExpenses as rawExpenses, currentUser } from "../data/dummyData";
 import useAuth from "../context/useAuth";
+import { getPersonalExpenses, createExpense, deleteExpense } from "../services/expenseService";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8", "#dfe6e9", "#b2bec3"];
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PersonalExpensesPage() {
   const { user } = useAuth();
-  const activeUser = user ?? currentUser;
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [successAlert, setSuccessAlert] = useState("");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setExpenses(rawExpenses.filter((e) => e.userId === activeUser._id));
+  const fetchExpenses = async () => {
+    try {
+      setLoading(true);
+      const data = await getPersonalExpenses();
+      setExpenses(data.expenses);
+    } catch (err) {
+      setError("Failed to fetch expenses.");
+      console.error(err);
+    } finally {
       setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [activeUser._id]);
-
-  const handleAddExpense = (data) => {
-    const newExpense = { _id: `pe${Date.now()}`, userId: activeUser._id, ...data, createdAt: new Date().toISOString() };
-    setExpenses((prev) => [newExpense, ...prev]);
-    setShowForm(false);
-    setSuccessAlert("Expense added successfully!");
-    setTimeout(() => setSuccessAlert(""), 3000);
+    }
   };
 
-  const handleDeleteExpense = (expenseId) => {
-    setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
-    setSuccessAlert("Expense deleted.");
-    setTimeout(() => setSuccessAlert(""), 2000);
+  useEffect(() => {
+    const loadExpenses = async () => {
+      await fetchExpenses();
+     }
+    loadExpenses();
+  }, []);
+
+  const handleAddExpense = async (data) => {
+    try {
+      await createExpense({...data,type: "personal", paidBy: user.id});
+      setShowForm(false);
+      setSuccessAlert("Expense added successfully!");
+      setTimeout(() => setSuccessAlert(""), 3000);
+    } catch (err) {
+      setError("Failed to add expense.");
+      console.error(err);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    try {
+      await deleteExpense(expenseId);
+      setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
+      setSuccessAlert("Expense deleted.");
+      setTimeout(() => setSuccessAlert(""), 2000);
+    } catch (err) {
+      setError("Failed to delete expense.");
+      console.error(err);
+    }
   };
 
   // Monthly bar chart data
@@ -77,6 +99,11 @@ export default function PersonalExpensesPage() {
       {successAlert && (
         <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
           {successAlert}
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError("")} className="mb-3">
+          {error}
         </Alert>
       )}
 

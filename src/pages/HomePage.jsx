@@ -1,47 +1,41 @@
 import { useState, useEffect } from "react";
 import { Container, Row, Col, Card, Button, Spinner } from "react-bootstrap";
-import { groups as allGroups, personalExpenses as allPersonalExpenses, groupExpenses, currentUser } from "../data/dummyData";
-import useAuth from "../context/useAuth";
+import { useNavigate } from "react-router-dom";
+import useAuth  from "../context/useAuth.jsx";
+import { getGroups } from "../services/groupService.js";
+import { getMonthlyPersonal } from "../services/analyticsService.js";
 
-export default function HomePage({ onNavigate }) {
+export default function HomePage() {
   const { user } = useAuth();
-  const activeUser = user ?? currentUser;
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const myGroups = allGroups.filter((g) => g.members.includes(activeUser._id));
-      const totalPersonal = allPersonalExpenses
-        .filter((e) => e.userId === activeUser._id)
-        .reduce((sum, e) => sum + e.amount, 0);
-      const totalGroup = groupExpenses
-        .filter((e) => e.participants.includes(activeUser._id))
-        .reduce((sum, e) => sum + e.amount / e.participants.length, 0);
+    Promise.all([getGroups(), getMonthlyPersonal()])
+      .then(([groups, monthly]) => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
 
-      const now = new Date();
-      const myPersonal = allPersonalExpenses.filter((e) => e.userId === activeUser._id);
-      const currentMonthSpent = myPersonal
-        .filter((e) => {
-          const d = new Date(e.date);
-          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-        })
-        .reduce((sum, e) => sum + e.amount, 0);
-      const currentYearSpent = myPersonal
-        .filter((e) => new Date(e.date).getFullYear() === now.getFullYear())
-        .reduce((sum, e) => sum + e.amount, 0);
+        const thisMonth = (monthly.data || [])
+          .filter((d) => d.year === currentYear && d.month === currentMonth)
+          .reduce((sum, d) => sum + d.total, 0);
 
-      setStats([
-        { label: "My Groups",              value: myGroups.length,                                          icon: "👥", color: "#4ecdc4",  action: "Groups"   },
-        { label: "Group Share",            value: `₹${Math.round(totalGroup).toLocaleString("en-IN")}`,    icon: "🤝", color: "#a29bfe",  action: "Groups"   },
-        { label: "This Month's Expenses",  value: `₹${currentMonthSpent.toLocaleString("en-IN")}`,         icon: "📅", color: "#fdcb6e",  action: "Personal" },
-        { label: "This Year's Expenses",   value: `₹${currentYearSpent.toLocaleString("en-IN")}`,          icon: "💸", color: "#e94560",  action: "Personal" },
-      ]);
-      setLoading(false);
-    }, 800);
+        const thisYear = (monthly.data || [])
+          .filter((d) => d.year === currentYear)
+          .reduce((sum, d) => sum + d.total, 0);
 
-    return () => clearTimeout(timer);
-  }, [activeUser._id]);
+        setStats([
+          { label: "My Groups",             value: (groups.groups || []).length,                       icon: "👥", color: "#4ecdc4", path: "/groups"},
+          { label: "Total Groups Joined",   value: (groups.groups || []).length,                       icon: "🤝", color: "#a29bfe", path: "/groups"   },
+          { label: "This Month's Expenses", value: `₹${thisMonth.toLocaleString("en-IN")}`,            icon: "📅", color: "#fdcb6e", path: "/expenses" },
+          { label: "This Year's Expenses",  value: `₹${thisYear.toLocaleString("en-IN")}`,             icon: "💸", color: "#e94560", path: "/expenses" },
+        ]);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   if (loading) {
     return (
@@ -55,10 +49,10 @@ export default function HomePage({ onNavigate }) {
   }
 
   const quickActions = [
-    { icon: "➕", label: "Add Personal Expense", action: "Personal" },
-    { icon: "👥", label: "View My Groups",        action: "Groups"   },
-    { icon: "💳", label: "Create a Group",        action: "Groups"   },
-    { icon: "📊", label: "Expense Analysis",      action: "Personal" },
+    { icon: "➕", label: "Add Personal Expense", path: "/expenses" , onClick: () => navigate("/expenses")},
+    { icon: "👥", label: "View My Groups",        path: "/groups", onClick: () => navigate("/groups") },
+    { icon: "💳", label: "Create a Group",        path: "/groups",  onClick: () => navigate("/groups") },
+    { icon: "📊", label: "Expense Analysis",      path: "/analytics", onClick: () => navigate("/analytics") },
   ];
 
   return (
@@ -71,17 +65,17 @@ export default function HomePage({ onNavigate }) {
         <div>
           <h1 className="fw-bold mb-1" style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)" }}>
             Welcome back,{" "}
-            <span style={{ color: "#e94560" }}>{activeUser.username}</span> 👋
+            <span style={{ color: "#e94560" }}>{user?.username}</span> 👋
           </h1>
           <p className="text-muted mb-3">Track your personal and group expenses in one place.</p>
           <div className="d-flex gap-2 flex-wrap">
             <Button
               style={{ backgroundColor: "#e94560", border: "none" }}
-              onClick={() => onNavigate && onNavigate("Personal")}
+              onClick={() => navigate("/expenses")}
             >
               Track Expenses
             </Button>
-            <Button variant="outline-secondary" onClick={() => onNavigate && onNavigate("Groups")}>
+            <Button variant="outline-secondary" onClick={() => navigate("/groups")}>
               View Groups
             </Button>
           </div>
@@ -96,7 +90,7 @@ export default function HomePage({ onNavigate }) {
             <Card
               className="h-100 border-0 shadow-sm text-center p-3"
               style={{ cursor: "pointer", transition: "transform 0.15s" }}
-              onClick={() => onNavigate && onNavigate(stat.action)}
+              onClick={() => navigate(stat.path)}
               onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-3px)"}
               onMouseLeave={(e) => e.currentTarget.style.transform = ""}
             >
@@ -121,7 +115,7 @@ export default function HomePage({ onNavigate }) {
             <Card
               className="border-0 shadow-sm text-center p-3 h-100"
               style={{ cursor: "pointer", transition: "transform 0.15s" }}
-              onClick={() => onNavigate && onNavigate(item.action)}
+              onClick={() => navigate(item.path)}
               onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-3px)"}
               onMouseLeave={(e) => e.currentTarget.style.transform = ""}
             >

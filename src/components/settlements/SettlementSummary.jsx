@@ -1,30 +1,29 @@
 import { ListGroup, Button, Alert, Badge } from "react-bootstrap";
-import { getUserById } from "../../data/dummyData";
 
-export default function SettlementSummary({ settlements, completedSettlements = [], currentUserId, onPay }) {
+// members: { [userId]: username }
+// currentUserId: logged-in user's _id
+export default function SettlementSummary({ settlements, members = {}, currentUserId, onPay }) {
   const hasPending = settlements && settlements.length > 0;
-  const hasCompleted = completedSettlements.length > 0;
+
+  const getUsername = (id) => members[id] || id;
 
   return (
     <div>
-      {/* Pending */}
       {hasPending ? (
         <ListGroup className="mb-4">
           {settlements.map((s) => {
-            const fromUser = getUserById(s.from);
-            const toUser = getUserById(s.to);
             const isMyOwe = s.from === currentUserId;
 
             return (
               <ListGroup.Item
-                key={s.id}
+                key={`${s.from}-${s.to}`}
                 className="d-flex justify-content-between align-items-center py-3"
                 variant={isMyOwe ? "warning" : ""}
               >
                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                  <span className="fw-semibold">{fromUser?.username || "Unknown"}</span>
+                  <span className="fw-semibold">{getUsername(s.from)}</span>
                   <span className="text-muted">→</span>
-                  <span className="fw-semibold">{toUser?.username || "Unknown"}</span>
+                  <span className="fw-semibold">{getUsername(s.to)}</span>
                   <Badge bg="danger" className="ms-1">
                     ₹{s.amount.toLocaleString("en-IN")}
                   </Badge>
@@ -50,36 +49,6 @@ export default function SettlementSummary({ settlements, completedSettlements = 
           <span style={{ fontSize: "1.2rem" }}>🎉</span>
           <span>All settled up! No outstanding balances.</span>
         </Alert>
-      )}
-
-      {/* Completed */}
-      {hasCompleted && (
-        <>
-          <h6 className="fw-semibold text-muted mb-2">✅ Completed Settlements</h6>
-          <ListGroup>
-            {completedSettlements.map((s) => {
-              const fromUser = getUserById(s.from);
-              const toUser = getUserById(s.to);
-              return (
-                <ListGroup.Item
-                  key={s.id}
-                  className="d-flex justify-content-between align-items-center py-3"
-                  variant="success"
-                >
-                  <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <span className="fw-semibold">{fromUser?.username || "Unknown"}</span>
-                    <span className="text-muted">→</span>
-                    <span className="fw-semibold">{toUser?.username || "Unknown"}</span>
-                    <Badge bg="success" className="ms-1">
-                      ₹{s.amount.toLocaleString("en-IN")}
-                    </Badge>
-                  </div>
-                  <Badge bg="success">Paid</Badge>
-                </ListGroup.Item>
-              );
-            })}
-          </ListGroup>
-        </>
       )}
     </div>
   );

@@ -1,29 +1,21 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { Spinner } from "react-bootstrap";
-import useAuth from "../../context/useAuth";
+import useAuth  from "../../context/useAuth.jsx";
 
-function RouteLoader() {
-  return (
-    <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
-      <div className="text-center">
-        <Spinner animation="border" style={{ color: "#e94560" }} />
-        <p className="mt-2 mb-0 text-muted">Loading...</p>
-      </div>
-    </div>
-  );
-}
-
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute() {
   const { isAuthenticated, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
-    return <RouteLoader />;
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <Spinner animation="border" style={{ color: "#e94560" }} />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <Outlet />;
 }

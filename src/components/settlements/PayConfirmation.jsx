@@ -1,21 +1,11 @@
-import { Modal, Button } from "react-bootstrap";
-import { getUserById } from "../../data/dummyData";
+import { Modal, Button, Spinner } from "react-bootstrap";
 
-export default function PayConfirmation({ settlement, onConfirm, onCancel }) {
+// members: { [userId]: username }
+export default function PayConfirmation({ settlement, members = {}, onConfirm, onCancel, confirming = false }) {
   if (!settlement) return null;
 
-  const toUser = getUserById(settlement.to);
-  const fromUser = getUserById(settlement.from);
-
-  const handleConfirm = () => {
-    console.log("Payment confirmed:", {
-      from: fromUser?.username,
-      to: toUser?.username,
-      amount: settlement.amount,
-      settlementId: settlement.id,
-    });
-    onConfirm && onConfirm(settlement);
-  };
+  const fromUsername = members[settlement.from] || settlement.from;
+  const toUsername = members[settlement.to] || settlement.to;
 
   return (
     <Modal show={!!settlement} onHide={onCancel} centered>
@@ -32,20 +22,19 @@ export default function PayConfirmation({ settlement, onConfirm, onCancel }) {
           ₹{settlement.amount.toLocaleString("en-IN")}
         </p>
         <p className="fs-5">
-          to{" "}
-          <strong>{toUser?.username || "Unknown"}</strong>
+          to <strong>{toUsername}</strong>
         </p>
         <p className="text-muted small mt-2">
-          This action will be logged. Confirm to proceed.
+          From: <strong>{fromUsername}</strong>. This will be recorded permanently.
         </p>
       </Modal.Body>
 
       <Modal.Footer className="justify-content-center gap-3">
-        <Button variant="outline-secondary" onClick={onCancel}>
+        <Button variant="outline-secondary" onClick={onCancel} disabled={confirming}>
           Cancel
         </Button>
-        <Button variant="success" onClick={handleConfirm}>
-          ✅ Confirm Payment
+        <Button variant="success" onClick={() => onConfirm && onConfirm(settlement)} disabled={confirming}>
+          {confirming ? <><Spinner size="sm" animation="border" className="me-1" />Recording…</> : "✅ Confirm Payment"}
         </Button>
       </Modal.Footer>
     </Modal>

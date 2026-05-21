@@ -1,112 +1,213 @@
 import { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Button, Spinner, Alert, Modal } from "react-bootstrap";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  Container, Card, Button, Spinner, Alert, Modal, Form
+} from "react-bootstrap";
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { getUserById, groupExpenses as allGroupExpenses, currentUser, computeGroupSettlements } from "../data/dummyData";
+import useAuth from "../context/useAuth.jsx";
+import {
+  getGroupById,
+  updateGroup,
+  deleteGroup,
+} from "../services/groupService";
+import {  
+  createExpense,
+  deleteExpense,
+  getGroupExpenses,
+} from "../services/expenseService";
+import {
+  getCalculatedSettlements,
+  recordSettlement,
+  getGroupSettlements,
+} from "../services/settlementService";
+import {
+  getGroupCategories
+} from "../services/analyticsService";
 import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
 import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
 import SettlementSummary from "../components/settlements/SettlementSummary";
 import PayConfirmation from "../components/settlements/PayConfirmation";
-import useAuth from "../context/useAuth";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8"];
 
-export default function GroupDetailPage({ group, onBack }) {
+export default function GroupDetailPage() {
+  const { groupId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const activeUser = user ?? currentUser;
-  const [loading, setLoading] = useState(true);
+
+  const [group, setGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
-  const [settlements, setSettlements] = useState([]);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [pieData, setPieData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [successAlert, setSuccessAlert] = useState("");
-  const [showSettlements, setShowSettlements] = useState(false);
+
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
-  const [completedSettlements, setCompletedSettlements] = useState([]);
+  const [calculatedSettlements, setCalculatedSettlements] = useState([]);
+  const [settlementsHistory, setSettlementsHistory] = useState([]);
+  const [loadingSettlements, setLoadingSettlements] = useState(false);
+  const [showSettlements, setShowSettlements] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
-  useEffect(() => {
-    if (!group) return;
-    const timer = setTimeout(() => {
-      setExpenses(allGroupExpenses.filter((e) => e.groupId === group._id));
-      const newSettlements = computeGroupSettlements(group._id);
-      setSettlements(newSettlements);
+  const fetchGroupData = async () => {
+    try {
+      const [groupRes, expensesData, categoryData] = await Promise.all([
+        getGroupById(groupId),
+        getGroupExpenses(groupId),
+        getGroupCategories(groupId),
+      ]);
+      setGroup(groupRes.group || groupRes);
+      setExpenses(expensesData.expenses || []);
+      setPieData(
+        (categoryData.data || []).map((item) => ({ name: item.category, value: item.total }))
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [group]);
+    }
+  };
 
-  // Dependency-based: re-compute settlements when expenses change
   useEffect(() => {
-    if (!group) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSettlements(computeGroupSettlements(group._id));
-  }, [expenses, group]);
+    fetchGroupData();
+  }, [groupId]);
 
-  if (!group) {
-    return (
-      <Container className="py-5 text-center">
-        <Alert variant="warning">No group selected. Please go back and select a group.</Alert>
-      </Container>
-    );
-  }
+  const handleAddExpense = async (formData) => {
+    try {
+      await createExpense({ ...formData, type: "group", groupId, paidBy: formData.paidBy });
+      setShowExpenseForm(false);
+      setSuccessAlert("Expense added successfully!");
+      setTimeout(() => setSuccessAlert(""), 3000);
+      fetchGroupData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    try {
+      await deleteExpense(expenseId);
+      setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
+      setSuccessAlert("Expense deleted.");
+      setTimeout(() => setSuccessAlert(""), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editName.trim()) return;
+    setEditSaving(true);
+    try {
+      const data = await updateGroup(groupId, { name: editName.trim() });
+      setGroup(data.group);
+      setShowEditModal(false);
+      setSuccessAlert("Group name updated!");
+      setTimeout(() => setSuccessAlert(""), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    setDeleting(true);
+    try {
+      await deleteGroup(groupId);
+      navigate("/groups");
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
+
+  const handleOpenSettlements = async () => {
+    setLoadingSettlements(true);
+    setShowSettleConfirm(false);
+    try {
+      const [calcData, histData] = await Promise.all([
+        getCalculatedSettlements(groupId),
+        getGroupSettlements(groupId),
+      ]);
+      setCalculatedSettlements(calcData.settlements || []);
+      setSettlementsHistory(histData.settlements || []);
+      setShowSettlements(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingSettlements(false);
+    }
+  };
+
+  const handlePayConfirm = async (settlement) => {
+    setRecordingPayment(true);
+    try {
+      await recordSettlement({
+        fromId: settlement.from,
+        toId: settlement.to,
+        amount: settlement.amount,
+        groupId,
+      });
+      setSelectedPayment(null);
+      setSuccessAlert(`Payment of Rs.${settlement.amount.toLocaleString("en-IN")} recorded!`);
+      setTimeout(() => setSuccessAlert(""), 3000);
+      const [calcData, histData] = await Promise.all([
+        getCalculatedSettlements(groupId),
+        getGroupSettlements(groupId),
+      ]);
+      setCalculatedSettlements(calcData.settlements || []);
+      setSettlementsHistory(histData.settlements || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
 
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
           <Spinner animation="border" style={{ color: "#e94560" }} />
-          <p className="mt-2 text-muted">Loading group details…</p>
+          <p className="mt-2 text-muted">Loading group details...</p>
         </div>
       </div>
     );
   }
 
-  const creator = getUserById(group.creator);
-  const members = group.members.map((id) => getUserById(id)).filter(Boolean);
-  const isGroupCreator = activeUser._id === group.creator;
+  if (!group) {
+    return (
+      <Container className="py-4">
+        <Alert variant="danger">{error || "Group not found."}</Alert>
+        <Button variant="link" onClick={() => navigate("/groups")}>Back to Groups</Button>
+      </Container>
+    );
+  }
 
-  // Category pie chart data
-  const categoryMap = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
-    return acc;
-  }, {});
-  const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
+  const memberMap = {};
+  (group.members || []).forEach((m) => {
+    memberMap[m._id] = m.username;
+  });
 
-  const handleAddExpense = (expenseData) => {
-    const newExpense = {
-      _id: `ge${Date.now()}`,
-      groupId: group._id,
-      ...expenseData,
-      createdAt: new Date().toISOString(),
-    };
-    setExpenses((prev) => [newExpense, ...prev]);
-    setShowExpenseForm(false);
-    setSuccessAlert("Expense added successfully!");
-    setTimeout(() => setSuccessAlert(""), 3000);
-  };
-
-  const handleDeleteExpense = (expenseId) => {
-    setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
-    setSuccessAlert("Expense deleted.");
-    setTimeout(() => setSuccessAlert(""), 2000);
-  };
-
-  const handlePayConfirm = (settlement) => {
-    setSettlements((prev) => prev.filter((s) => s.id !== settlement.id));
-    setCompletedSettlements((prev) => [...prev, { ...settlement, paidAt: new Date().toISOString() }]);
-    setSelectedPayment(null);
-    setSuccessAlert(`Payment of ₹${settlement.amount.toLocaleString("en-IN")} confirmed!`);
-    setTimeout(() => setSuccessAlert(""), 3000);
-  };
+  const isGroupCreator = (group.createdBy?._id || group.createdBy) === (user?._id || user?.id);
 
   return (
     <Container fluid="xl" className="py-4">
-      {/* Back button */}
-      {onBack && (
-        <Button variant="link" className="mb-3 p-0 text-muted" onClick={onBack}>
-          ← Back to Groups
-        </Button>
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError("")}>
+          {error}
+        </Alert>
       )}
-
       {successAlert && (
         <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
           {successAlert}
@@ -115,112 +216,140 @@ export default function GroupDetailPage({ group, onBack }) {
 
       {/* Group header */}
       <Card className="border-0 shadow-sm mb-4">
-        <Card.Body className="p-4">
-          <h3 className="fw-bold mb-1" style={{ color: "#1a1a2e" }}>{group.name}</h3>
-          <p className="text-muted mb-0 small">
-            Created by{" "}
-            <span className="fw-semibold text-dark">{creator?.username || "Unknown"}</span>
-          </p>
+        <Card.Body className="d-flex flex-wrap align-items-start justify-content-between gap-3 p-4">
+          <div>
+            <h3 className="fw-bold mb-1" style={{ color: "#1a1a2e" }}>{group.name}</h3>
+            <p className="text-muted small mb-1">
+              Created by <strong>{group.createdBy?.username || memberMap[group.createdBy?._id || group.createdBy] || "Unknown"}</strong>
+            </p>
+            <p className="text-muted small mb-0">
+              {group.members?.length} member{group.members?.length !== 1 ? "s" : ""}:{" "}
+              {(group.members || []).map((m) => m.username || m.name || memberMap[m._id || m] || m).join(", ")}
+            </p>
+          </div>
+          <div className="d-flex gap-2 flex-wrap">
+            {isGroupCreator && (
+              <>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => { setEditName(group.name); setShowEditModal(true); }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
+            <Button variant="outline-primary" size="sm" onClick={() => navigate("/groups")}>
+              Back
+            </Button>
+          </div>
         </Card.Body>
       </Card>
 
-      {/* Members */}
-      <Card className="border-0 shadow-sm mb-4">
-        <Card.Header className="bg-white border-bottom fw-semibold py-3">👥 Members</Card.Header>
-        <Card.Body className="p-3">
-          <Row xs={2} sm={3} md={4} className="g-2">
-            {members.map((user) => (
-              <Col key={user._id}>
-                <div className="border rounded p-2 text-center small fw-semibold">
-                  {user.username}
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </Card.Body>
-      </Card>
 
-      {/* Pie Chart */}
+      {/* Settlement Section */}
       <Card className="border-0 shadow-sm mb-4">
-        <Card.Header className="bg-white border-bottom fw-semibold py-3">
-          📊 Expense by Category
+        <Card.Header className="bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+          <span className="fw-semibold">Settlements</span>
+          {!showSettlements && (
+            <Button
+              style={{ backgroundColor: "#e94560", border: "none" }}
+              size="sm"
+              onClick={() => setShowSettleConfirm(true)}
+              disabled={loadingSettlements}
+            >
+              {loadingSettlements ? (
+                <><Spinner size="sm" animation="border" className="me-1" />Calculating...</>
+              ) : (
+                "Make Final Settlement"
+              )}
+            </Button>
+          )}
         </Card.Header>
-        <Card.Body className="p-3">
-          {pieData.length === 0 ? (
-            <Alert variant="info" className="small">No expenses yet to visualize.</Alert>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
+        {showSettlements && (
+          <Card.Body>
+            <h6 className="fw-semibold mb-3">Outstanding Balances</h6>
+            <SettlementSummary
+              settlements={calculatedSettlements}
+              members={memberMap}
+              currentUserId={user?._id || user?.id}
+              onPay={(s) => setSelectedPayment(s)}
+            />
+            {settlementsHistory.length > 0 && (
+              <>
+                <h6 className="fw-semibold mt-4 mb-3">Payment History</h6>
+                <div className="table-responsive rounded" style={{ border: "1px solid #b2dfdb" }}>
+                  <table className="table table-sm table-hover mb-0 table-success">
+                    <thead className="table-success">
+                      <tr>
+                        <th className="py-2 px-3">From</th>
+                        <th className="py-2 px-3">To</th>
+                        <th className="py-2 px-3">Amount</th>
+                        <th className="py-2 px-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {settlementsHistory.map((s) => (
+                        <tr key={s._id}>
+                          <td className="py-2 px-3 fw-semibold text-danger">
+                            {s.fromUser?.username || memberMap[s.fromUser?._id] || "?"}
+                          </td>
+                          <td className="py-2 px-3 fw-semibold text-success">
+                            {s.toUser?.username || memberMap[s.toUser?._id] || "?"}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="badge bg-success">
+                              Rs.{s.amount.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-muted small">
+                            {new Date(s.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </Card.Body>
+        )}
+      </Card>
+
+      {/* Category Pie Chart */}
+      {pieData.length > 0 && (
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Header className="bg-white border-bottom fw-semibold py-3">
+            Spending by Category
+          </Card.Header>
+          <Card.Body>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie
-                  data={pieData.map((item, index) => ({ ...item, fill: PIE_COLORS[index % PIE_COLORS.length] }))}
+                <Pie data={pieData.map((item, i) => ({ ...item, fill: PIE_COLORS[i % PIE_COLORS.length] }))}
                   dataKey="value"
                   nameKey="name"
-                  cx="50%"
-                  cy="45%"
-                  outerRadius={90}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
-                />
-                <Tooltip formatter={(val) => `₹${val.toLocaleString("en-IN")}`} />
+                  cx="50%" cy="50%"
+                  outerRadius={80}
+                  label={({ name }) => name} />
+                <Tooltip formatter={(v) => [`Rs.${v.toLocaleString("en-IN")}`]} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-          )}
-        </Card.Body>
-      </Card>
+          </Card.Body>
+        </Card>
+      )}
 
-      {/* Settlements */}
+      {/* Expense Ledger */}
       <Card className="border-0 shadow-sm mb-4">
-        <Card.Body className="p-3 d-flex flex-column align-items-start gap-3">
-          <Button
-            variant="danger"
-            style={{ backgroundColor: "#e94560", border: "none" }}
-            onClick={() => setShowSettleConfirm(true)}
-          >
-            💰 Make Final Settlement
-          </Button>
-          {showSettlements && (
-            <div className="w-100">
-              <SettlementSummary
-                settlements={settlements}
-                completedSettlements={completedSettlements}
-                currentUserId={activeUser._id}
-                onPay={(s) => setSelectedPayment(s)}
-              />
-            </div>
-          )}
-        </Card.Body>
-      </Card>
-
-      {/* Settle Confirm Modal */}
-      <Modal show={showSettleConfirm} onHide={() => setShowSettleConfirm(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Settlement</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Are you sure you want to finalize settlements for this group? This will display the full settlement summary.
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowSettleConfirm(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            style={{ backgroundColor: "#e94560", border: "none" }}
-            onClick={() => {
-              setShowSettleConfirm(false);
-              setShowSettlements(true);
-            }}
-          >
-            Settle Now
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      {/* Expense Ledger - Full Width */}
-      <Card className="border-0 shadow-sm mb-4">
-        <Card.Header className="bg-white border-bottom d-flex justify-content-between align-items-center py-3">
-          <span className="fw-semibold">📒 Expense Ledger</span>
+        <Card.Header className="bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+          <span className="fw-semibold">Expenses</span>
           <Button
             size="sm"
             style={{ backgroundColor: "#e94560", border: "none" }}
@@ -232,9 +361,9 @@ export default function GroupDetailPage({ group, onBack }) {
         <Card.Body className="p-3">
           <GroupExpenseLedger
             expenses={expenses}
-            members={members}
+            members={group.members || []}
             isGroupCreator={isGroupCreator}
-            onDelete={handleDeleteExpense}
+            onDeleteExpense={handleDeleteExpense}
           />
         </Card.Body>
       </Card>
@@ -243,18 +372,78 @@ export default function GroupDetailPage({ group, onBack }) {
       <Modal show={showExpenseForm} onHide={() => setShowExpenseForm(false)} centered>
         <Modal.Body>
           <GroupExpenseForm
-            members={members}
+            members={group.members || []}
             onSubmit={handleAddExpense}
             onCancel={() => setShowExpenseForm(false)}
           />
         </Modal.Body>
       </Modal>
 
+      {/* Settlement Confirm Modal */}
+      <Modal show={showSettleConfirm} onHide={() => setShowSettleConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Final Settlement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Calculate the optimal payments to settle all debts in this group?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowSettleConfirm(false)}>
+            Cancel
+          </Button>
+          <Button style={{ backgroundColor: "#e94560", border: "none" }} onClick={handleOpenSettlements}>
+            Calculate
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Edit Group Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Group Name</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Control
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Group name"
+          />
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
+          <Button
+            style={{ backgroundColor: "#e94560", border: "none" }}
+            onClick={handleEditSave}
+            disabled={editSaving}
+          >
+            {editSaving ? "Saving..." : "Save"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Group</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete <strong>{group.name}</strong>? This cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+          <Button variant="danger" onClick={handleDeleteGroup} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       {/* Pay Confirmation Modal */}
       <PayConfirmation
         settlement={selectedPayment}
+        members={memberMap}
         onConfirm={handlePayConfirm}
         onCancel={() => setSelectedPayment(null)}
+        confirming={recordingPayment}
       />
     </Container>
   );

@@ -43,7 +43,7 @@ export default function LoginForm({ onSwitchToRegister, onLogin, authError = "",
         setForm({ email: "", password: "" });
         setErrors({});
       } catch {
-        // Auth error is rendered via props.
+        setErrors((prev) => ({ ...prev, form: "An unexpected error occurred. Please try again." }));
       }
     }
   };
@@ -56,6 +56,7 @@ export default function LoginForm({ onSwitchToRegister, onLogin, authError = "",
 
         {infoMessage && <Alert variant="success" className="mb-3">{infoMessage}</Alert>}
         {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
+        {!authError && errors.form && <Alert variant="danger" className="mb-3">{errors.form}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">

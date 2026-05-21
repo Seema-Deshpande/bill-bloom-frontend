@@ -3,56 +3,93 @@ import { Container, Row, Col, Button, Alert, Spinner, Card, Modal } from "react-
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import GroupCard from "../components/groups/GroupCard";
 import CreateGroupForm from "../components/groups/CreateGroupForm";
-import { groups as rawGroups, groupExpenses, currentUser } from "../data/dummyData";
-import useAuth from "../context/useAuth";
+import EditGroupForm from "../components/groups/EditGroupForm";
+import { getGroups, createGroup, updateGroup, deleteGroup } from "../services/groupService";
+import { getGroupSpending } from "../services/analyticsService";
 
-export default function GroupsPage({ onNavigate }) {
-  const { user } = useAuth();
-  const activeUser = user ?? currentUser;
+export default function GroupsPage() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [successAlert, setSuccessAlert] = useState("");
+  const [chartData, setChartData] = useState([]);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setGroups(rawGroups.filter((g) => g.members.includes(activeUser._id)));
+  const fetchGroups = async () => {
+    try {
+      const data = await getGroups();
+      setGroups(data.groups || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [activeUser._id]);
-
-  const handleCreateGroup = (payload) => {
-    const newGroup = {
-      _id: `g${Date.now()}`,
-      name: payload.name,
-      creator: activeUser._id,
-      members: Array.from(new Set([activeUser._id, ...payload.memberIds])),
-      createdAt: new Date().toISOString(),
-    };
-    setGroups((prev) => [newGroup, ...prev]);
-    setShowForm(false);
-    setSuccessAlert(`Group "${payload.name}" created successfully!`);
-    setTimeout(() => setSuccessAlert(""), 3000);
+    }
   };
 
-  // Bar chart data: user's share of spending per group
-  const chartData = groups
-    .filter((g) => g.members.includes(activeUser._id))
-    .map((g) => {
-      const expenses = groupExpenses.filter(
-        (e) => e.groupId === g._id && e.participants.includes(activeUser._id)
+  const fetchChart = async () => {
+    try {
+      const data = await getGroupSpending();
+      setChartData(
+        (data.data || []).map((d) => ({
+          name: d.groupName.length > 12 ? d.groupName.slice(0, 12) + "..." : d.groupName,
+          amount: Math.round(d.total),
+        }))
       );
-      const total = expenses.reduce((sum, e) => sum + e.amount / e.participants.length, 0);
-      return { name: g.name.length > 12 ? g.name.slice(0, 12) + "…" : g.name, amount: Math.round(total) };
-    });
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchGroups();
+    fetchChart();
+  }, []);
+
+  const handleCreateGroup = async (payload) => {
+    try {
+      await createGroup(payload);
+      setShowForm(false);
+      setSuccessAlert(`Group "${payload.name}" created successfully!`);
+      setTimeout(() => setSuccessAlert(""), 3000);
+      fetchGroups();
+      fetchChart();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleEditGroup = async (payload) => {
+    try {
+      await updateGroup(editingGroup._id, payload);
+      setEditingGroup(null);
+      setSuccessAlert(`Group "${payload.name}" updated successfully!`);
+      setTimeout(() => setSuccessAlert(""), 3000);
+      fetchGroups();
+      fetchChart();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    try {
+      await deleteGroup(deletingGroup._id);
+      setDeletingGroup(null);
+      setSuccessAlert(`Group "${deletingGroup.name}" deleted successfully!`);
+      setTimeout(() => setSuccessAlert(""), 3000);
+      fetchGroups();
+      fetchChart();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
           <Spinner animation="border" style={{ color: "#e94560" }} />
-          <p className="mt-2 text-muted">Loading groups…</p>
+          <p className="mt-2 text-muted">Loading groups...</p>
         </div>
       </div>
     );
@@ -60,6 +97,11 @@ export default function GroupsPage({ onNavigate }) {
 
   return (
     <Container fluid="xl" className="py-4">
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
       {successAlert && (
         <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
           {successAlert}
@@ -81,26 +123,49 @@ export default function GroupsPage({ onNavigate }) {
         </Button>
       </div>
 
-      {/* Create Group Modal */}
       <Modal show={showForm} onHide={() => setShowForm(false)} centered>
         <Modal.Body>
           <CreateGroupForm onSubmit={handleCreateGroup} onCancel={() => setShowForm(false)} />
         </Modal.Body>
       </Modal>
 
-      {/* Group spending bar chart */}
+      <Modal show={!!editingGroup} onHide={() => setEditingGroup(null)} centered>
+        <Modal.Body>
+          {editingGroup && (
+            <EditGroupForm
+              group={editingGroup}
+              onSubmit={handleEditGroup}
+              onCancel={() => setEditingGroup(null)}
+            />
+          )}
+        </Modal.Body>
+      </Modal>
+
+      <Modal show={!!deletingGroup} onHide={() => setDeletingGroup(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Group</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete <strong>{deletingGroup?.name}</strong>? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setDeletingGroup(null)}>Cancel</Button>
+          <Button variant="danger" onClick={handleDeleteGroup}>Delete</Button>
+        </Modal.Footer>
+      </Modal>
+
       {chartData.length > 0 && (
         <Card className="border-0 shadow-sm mb-4">
           <Card.Header className="bg-white border-bottom fw-semibold py-3">
-            📊 Your Spending Across Groups
+            Your Spending Across Groups
           </Card.Header>
           <Card.Body>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₹${v}`} />
-                <Tooltip formatter={(value) => [`₹${value.toLocaleString("en-IN")}`, "Your Share"]} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value) => [`Rs.${value.toLocaleString("en-IN")}`, "Total"]} />
                 <Bar dataKey="amount" fill="#8884d8" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -116,7 +181,8 @@ export default function GroupsPage({ onNavigate }) {
             <Col key={group._id} xs={12} sm={6} lg={4}>
               <GroupCard
                 group={group}
-                onOpenGroup={(g) => onNavigate && onNavigate("GroupDetail", g)}
+                onEdit={setEditingGroup}
+                onDelete={setDeletingGroup}
               />
             </Col>
           ))}
@@ -125,4 +191,3 @@ export default function GroupsPage({ onNavigate }) {
     </Container>
   );
 }
-

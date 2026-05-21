@@ -7,7 +7,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function RegisterForm({ onSwitchToLogin, onRegister, authError = "", loading = false }) {
   const [form, setForm] = useState({ username: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState({});
-
   const validate = () => {
     const newErrors = {};
     if (!form.username.trim()) {
@@ -48,15 +47,11 @@ export default function RegisterForm({ onSwitchToLogin, onRegister, authError = 
     }
     if (onRegister) {
       try {
-        await onRegister({
-          username: form.username,
-          email: form.email,
-          password: form.password,
-        });
+        await onRegister(form);
         setForm({ username: "", email: "", password: "", confirmPassword: "" });
         setErrors({});
       } catch {
-        // Auth error is rendered via props.
+        setErrors((prev) => ({ ...prev, form: "An unexpected error occurred. Please try again." }));
       }
     }
   };
@@ -68,6 +63,7 @@ export default function RegisterForm({ onSwitchToLogin, onRegister, authError = 
         <p className="auth-subtitle">Join Bill Bloom and manage your expenses</p>
 
         {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
+        {!authError && errors.form && <Alert variant="danger" className="mb-3">{errors.form}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">

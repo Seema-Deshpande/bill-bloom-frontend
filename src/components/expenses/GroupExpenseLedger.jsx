@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Table, Button, Badge, Alert } from "react-bootstrap";
-import { getUserById } from "../../data/dummyData";
 
-export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteExpense }) {
+const getMemberId = (member) => member?._id || member?.id || member;
+const getMemberName = (member) => member?.username || member?.name || member?.email || member;
+
+export default function GroupExpenseLedger({ expenses, members = [], isGroupCreator, onDeleteExpense, onDelete }) {
   const [deletingId, setDeletingId] = useState(null);
+  const deleteHandler = onDeleteExpense || onDelete;
 
   if (!expenses || expenses.length === 0) {
     return (
@@ -16,7 +19,7 @@ export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteE
   const handleDelete = (expense) => {
     if (window.confirm(`Delete "${expense.description || expense.category}"? This cannot be undone.`)) {
       setDeletingId(expense._id);
-      onDeleteExpense && onDeleteExpense(expense._id);
+      deleteHandler && deleteHandler(expense._id);
       setTimeout(() => setDeletingId(null), 500);
     }
   };
@@ -33,9 +36,22 @@ export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteE
     Other: "secondary",
   };
 
+  const memberMap = new Map(
+    members.map((member) => {
+      const id = member?._id || member?.id || (typeof member === "string" ? member : null);
+      const name = member?.username || member?.name || member?.email || (typeof member === "string" ? member : "Unknown");
+      return [id, name];
+    }),
+  );
+
   // Collect unique participant IDs across all expenses, preserving first-seen order
   const allParticipantIds = [...new Set(expenses.flatMap((e) => e.participants || []))];
-  const allParticipants = allParticipantIds.map((id) => ({ id, username: getUserById(id)?.username || id }));
+  const allParticipants = allParticipantIds.map((id) => {
+    // Try to find the participant name from members, or if the expense has a populated object somewhere
+    const nameFromMap = memberMap.get(id);
+    const username = (nameFromMap && nameFromMap !== id) ? nameFromMap : id;
+    return { id, username };
+  });
 
   const totalGroupExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalPerParticipant = allParticipants.reduce((acc, p) => {
@@ -66,7 +82,12 @@ export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteE
       </thead>
       <tbody>
         {expenses.map((expense, index) => {
-          const paidByUser = getUserById(expense.paidBy);
+          const paidById = expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
+          const nameFromMap = memberMap.get(paidById);
+          const paidByName = (nameFromMap && nameFromMap !== paidById) 
+            ? nameFromMap 
+            : (expense.paidBy?.username || expense.paidBy?.name || paidById || "Unknown");
+          
           const splitAmount = expense.participants?.length
             ? (expense.amount / expense.participants.length)
             : 0;
@@ -76,7 +97,7 @@ export default function GroupExpenseLedger({ expenses, isGroupCreator, onDeleteE
               <td>{expense.description || <span className="text-muted">—</span>}</td>
               <td className="fw-semibold">₹{expense.amount.toLocaleString("en-IN")}</td>
               <td>{new Date(expense.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
-              <td>{paidByUser?.username || "Unknown"}</td>
+              <td>{paidByName}</td>
               {allParticipants.map((p) => (
                 <td key={p.id} className="text-center">
                   {expense.participants?.includes(p.id)
