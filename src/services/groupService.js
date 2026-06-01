@@ -1,40 +1,29 @@
-// CRUD operations for groups
-import {fetchAPI} from "../api/apiClient.js";
+import axios from 'axios'; 
 import { GROUP_API } from "../config/apiConfig";
 
-const unwrapData = (response) => response?.data ?? response;
-
 export const createGroup =  async (groupData) => {
-    const res = await fetchAPI(GROUP_API.BASE, {
-        method: "POST",
-        body: JSON.stringify(groupData),
-    });
-    return unwrapData(res);
+    const res = await axios.post(GROUP_API.BASE, { groupData });
+    return res
 };
 
 export const getGroups = async () => {
-    const res = await fetchAPI(GROUP_API.BASE);
-    return unwrapData(res);
+    const res = await axios.get(GROUP_API.BASE);
+    return res;
 }
 
 export const getGroupById = async (groupId) => {
-    const res = await fetchAPI(GROUP_API.DETAIL(groupId));
-    return unwrapData(res);
+    const res = await axios.get(GROUP_API.DETAIL(groupId));
+    return res
 }
 
 export const updateGroup = async (groupId, groupData) => {
-    const res = await fetchAPI(GROUP_API.DETAIL(groupId), {
-        method: "PUT",
-        body: JSON.stringify(groupData),
-    });
-    return unwrapData(res);
+    const res = await axios.put(GROUP_API.DETAIL(groupId), { groupData });
+    return res
 }
 
 export const deleteGroup = async (groupId) => {
-    const res = await fetchAPI(GROUP_API.DETAIL(groupId), {
-        method: "DELETE",
-    });
-    return unwrapData(res);
+    const res = await axios.delete(GROUP_API.DETAIL(groupId))
+    return res
 }
 
 export default {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Button, Spinner } from "react-bootstrap";
+import { Container, Row, Col, Card, Button, Spinner, Alert } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import useAuth  from "../context/useAuth.jsx";
 import { getGroups } from "../services/groupService.js";
@@ -10,30 +10,42 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     Promise.all([getGroups(), getMonthlyPersonal()])
-      .then(([groups, monthly]) => {
+      .then(([groupsResponse, monthlyResponse]) => {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
-        const thisMonth = (monthly.data || [])
+        // Extract data from axios responses
+        const groupsData = groupsResponse.data || groupsResponse;
+        const monthlyData = monthlyResponse.data || monthlyResponse;
+
+        // Ensure monthlyData is an array
+        const monthlyArray = Array.isArray(monthlyData) ? monthlyData : (monthlyData.data || []);
+
+        const thisMonth = monthlyArray
           .filter((d) => d.year === currentYear && d.month === currentMonth)
           .reduce((sum, d) => sum + d.total, 0);
 
-        const thisYear = (monthly.data || [])
+        const thisYear = monthlyArray
           .filter((d) => d.year === currentYear)
           .reduce((sum, d) => sum + d.total, 0);
 
+        const groupCount = Array.isArray(groupsData) ? groupsData.length : (groupsData.groups || []).length;
+
         setStats([
-          { label: "My Groups",             value: (groups.groups || []).length,                       icon: "👥", color: "#4ecdc4", path: "/groups"},
-          { label: "Total Groups Joined",   value: (groups.groups || []).length,                       icon: "🤝", color: "#a29bfe", path: "/groups"   },
+          { label: "My Groups",             value: groupCount,                                         icon: "👥", color: "#4ecdc4", path: "/groups"},
+          { label: "Total Groups Joined",   value: groupCount,                                         icon: "🤝", color: "#a29bfe", path: "/groups"   },
           { label: "This Month's Expenses", value: `₹${thisMonth.toLocaleString("en-IN")}`,            icon: "📅", color: "#fdcb6e", path: "/expenses" },
           { label: "This Year's Expenses",  value: `₹${thisYear.toLocaleString("en-IN")}`,             icon: "💸", color: "#e94560", path: "/expenses" },
         ]);
       })
-      .catch(() => {})
+      .catch((err) => {
+        setError(err.message || "Failed to load dashboard data.");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,6 +69,11 @@ export default function HomePage() {
 
   return (
     <Container fluid="xl" className="py-4">
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError("")} className="mb-4">
+          {error}
+        </Alert>
+      )}
       {/* Hero */}
       <div
         className="rounded-4 p-4 p-md-5 mb-4 d-flex align-items-center justify-content-between"

@@ -19,6 +19,7 @@ export default function PersonalExpensesPage() {
   const [showForm, setShowForm] = useState(false);
   const [successAlert, setSuccessAlert] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchExpenses = async () => {
     try {
@@ -41,14 +42,18 @@ export default function PersonalExpensesPage() {
   }, []);
 
   const handleAddExpense = async (data) => {
+    setSubmitting(true);
     try {
-      await createExpense({...data,type: "personal", paidBy: user.id});
+      await createExpense({...data, type: "personal", paidBy: user?._id || user?.id});
       setShowForm(false);
       setSuccessAlert("Expense added successfully!");
       setTimeout(() => setSuccessAlert(""), 3000);
+      await fetchExpenses();
     } catch (err) {
-      setError("Failed to add expense.");
+      setError(err.message || "Failed to add expense.");
       console.error(err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -59,7 +64,7 @@ export default function PersonalExpensesPage() {
       setSuccessAlert("Expense deleted.");
       setTimeout(() => setSuccessAlert(""), 2000);
     } catch (err) {
-      setError("Failed to delete expense.");
+      setError(err.message || "Failed to delete expense.");
       console.error(err);
     }
   };
@@ -132,6 +137,7 @@ export default function PersonalExpensesPage() {
           <PersonalExpenseForm
             onSubmit={handleAddExpense}
             onCancel={() => setShowForm(false)}
+            submitting={submitting}
           />
         </Modal.Body>
       </Modal>

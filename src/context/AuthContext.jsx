@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
  useEffect(() => {
     const storedToken = localStorage.getItem("token");
     if (!storedToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
@@ -32,6 +33,7 @@ export const AuthProvider = ({ children }) => {
 
     async function login(email, password) {
         setError(null);
+        setLoading(true);
         try {
             const data = await loginUser(email, password);
              localStorage.setItem("token", data.token);
@@ -41,16 +43,21 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             setError(err.message);
             throw err;
+        } finally {
+            setLoading(false);
         }
     }
 
     async function register(userData) {
         setError(null);
+        setLoading(true);
         try {
             await registerUser(userData);
         } catch (err) {
            setError(err.message);
             throw err;
+        } finally {
+            setLoading(false);
         }
     }
     async function logout() {

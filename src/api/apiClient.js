@@ -1,47 +1,65 @@
+
+import axios from 'axios';
+
 const API_BASE_URL = "http://localhost:3000/api";
+
 const getStoredToken = () => {
       const token = localStorage.getItem("token");
     return token || null;
 };
 
-export const fetchAPI = async (endpoint, options = {}) => {
-    if (!endpoint || typeof endpoint !== "string") {
-        throw new Error(`fetchAPI called with invalid endpoint: ${String(endpoint)}`);
-    }
-    const url = `${API_BASE_URL}${endpoint}`;
+const apiClient = axios.create({
+        baseURL: API_BASE_URL,
+        headers:{
+            "Content-Type": "application/json",
+        }
+});
+apiClient.interceptors.request.use((config)=>{
     const token = getStoredToken();
-
-    const headers = {
-        "Content-Type": "application/json",
-        ...options.headers,
+    if( token ) {
+     config.headers.Authorization = `Bearer ${token}`
     }
+    return config
+});
 
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+export const fetchAPI = async (endpoint, options = {}) => {
+    const { method = 'GET', body, headers, ...rest } = options
+    let data = rest.data;
+    if (body !== undefined && data === undefined) {
+        if(typeof body ==='string') {
+            try {
+                data = JSON.parse(body)
+            }
+            catch {
+                data = body
+            }
+        }
+        else {
+            data =body;
+        }
     }
-
-    const config = {
-        ...options,
-        headers,
+    try {
+        const response = await apiClient.request({
+            url: endpoint,
+            method,
+            headers,
+            data,
+            ...rest,
+        })
+        return response.data;
     }
-
-    const response = await fetch(url, config);
-    if (response.status === 401) {
-        console.warn("Unauthorized access - clearing token");
-        localStorage.removeItem("token");
+    catch (error) {
+        if (error.response) {
+            const errorData = error.response.data || {};
+            const normalizedError = new Error(errorData.message || 'API ERROR');
+            normalizedError.response = {
+                status: error.response.status,
+                data: errorData,
+            }
+            throw normalizedError
+        }
+        throw error;
     }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || "Something went wrong. Please try again.");
-    }
-
-    if (response.status === 204) {
-        return null;
-    }
-
-    return data
 }
 
-export default fetchAPI;
+export default apiClient;

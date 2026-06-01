@@ -42,8 +42,10 @@ export default function LoginForm({ onSwitchToRegister, onLogin, authError = "",
         await onLogin(form.email, form.password);
         setForm({ email: "", password: "" });
         setErrors({});
-      } catch {
-        setErrors((prev) => ({ ...prev, form: "An unexpected error occurred. Please try again." }));
+      } catch (err) {
+        // use error message from API if available
+        const errorMessage = err.message || "An unexpected error occurred. Please try again.";
+        setErrors((prev) => ({ ...prev, form: errorMessage }));
       }
     }
   };

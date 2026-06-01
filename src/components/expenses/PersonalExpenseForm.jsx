@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Form, Button, Card, Row, Col } from "react-bootstrap";
+import { Form, Button, Card, Row, Col, Spinner } from "react-bootstrap";
 import { expenseCategories } from "../../data/dummyData";
 
-export default function PersonalExpenseForm({ onSubmit, onCancel }) {
+export default function PersonalExpenseForm({ onSubmit, onCancel, submitting = false }) {
   const [form, setForm] = useState({
     amount: "",
     category: "",
@@ -113,11 +113,22 @@ export default function PersonalExpenseForm({ onSubmit, onCancel }) {
           </Form.Group>
 
           <div className="d-flex gap-2">
-            <Button type="submit" style={{ backgroundColor: "#e94560", border: "none" }}>
-              Add Expense
+            <Button
+              type="submit"
+              style={{ backgroundColor: "#e94560", border: "none" }}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <Spinner size="sm" animation="border" className="me-2" />
+                  Adding...
+                </>
+              ) : (
+                "Add Expense"
+              )}
             </Button>
             {onCancel && (
-              <Button type="button" variant="outline-secondary" onClick={onCancel}>
+              <Button type="button" variant="outline-secondary" onClick={onCancel} disabled={submitting}>
                 Cancel
               </Button>
             )}
