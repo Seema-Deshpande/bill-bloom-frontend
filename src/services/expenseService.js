@@ -1,22 +1,24 @@
-import axios from 'axios'
+import apiClient from "../api/apiClient.js";
 import { EXPENSE_API } from "../config/apiConfig.js";
 
 
 export const createExpense = async (expenseData) => {
-    return  await axios.post(EXPENSE_API.BASE, { expenseData });
+    const res =  await apiClient.post(EXPENSE_API.BASE, { expenseData });
+    return res.data;
 };
 
 export const getGroupExpenses = async (groupId) => {
-    return await axios.get(EXPENSE_API.GROUP(groupId));
+    const res = await apiClient.get(EXPENSE_API.GROUP(groupId));
+    return res.data;
 }
 export const getPersonalExpenses  = async () => {
-    return await axios.get(EXPENSE_API.PERSONAL)
+    const res =  await apiClient.get(EXPENSE_API.PERSONAL)
+    return res.data
 
 }
 export const deleteExpense = async (expenseId) => {
-   return await axios.delete(EXPENSE_API.DETAIL(expenseId), {
-        method: "DELETE",
-    });
+  const res =  await apiClient.delete(EXPENSE_API.DETAIL(expenseId))
+  return res.data
 }
 
 

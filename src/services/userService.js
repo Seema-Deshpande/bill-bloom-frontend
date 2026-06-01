@@ -1,9 +1,9 @@
-import axios from 'axios'
 import { USER_API } from "../config/apiConfig.js";
+import apiClient from '../api/apiClient.js';
 
 export const searchUsers = async (query) => {
-    const res = await axios.get(USER_API.SEARCH(query));
-    return res
+    const res = await apiClient.get(USER_API.SEARCH(query));
+    return res.data
 };
 
 export default {

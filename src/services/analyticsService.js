@@ -1,19 +1,23 @@
-import axios from 'axios'
+import apiClient from '../api/apiClient.js';
 import { ANALYTICS_API } from '../config/apiConfig.js';
 
 export async function getMonthlyPersonal() {
-    return await axios.get (ANALYTICS_API.PERSONAL);
+ const res =  await apiClient.get(ANALYTICS_API.PERSONAL);
+ return res.data
 }
 
 export async function getGroupSpending() {
-    return await axios.get(ANALYTICS_API.GROUP_SPENDING);
+   const res = await apiClient.get(ANALYTICS_API.GROUP_SPENDING);
+   return res.data
 }
 
 export async function getGroupCategories(groupId) {
-    return await axios.get(ANALYTICS_API.GROUP_CATEGORIES(groupId));
+    const res = await apiClient.get(ANALYTICS_API.GROUP_CATEGORIES(groupId));
+    return res.data
 }
 
 export async function getPersonalCategories() {
-    return await axios.get(ANALYTICS_API.PERSONAL_CATEGORIES);
+   const res = await apiClient.get(ANALYTICS_API.PERSONAL_CATEGORIES);
+   return res.data
 }
 
