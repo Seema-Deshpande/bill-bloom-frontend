@@ -6,89 +6,97 @@ import {
 } from "recharts";
 import PersonalExpenseForm from "../components/expenses/PersonalExpenseForm";
 import PersonalExpenseLedger from "../components/expenses/PersonalExpenseLedger";
-import useAuth from "../context/useAuth";
-import { getPersonalExpenses, createExpense, deleteExpense } from "../services/expenseService";
+import { useDispatch, useSelector } from "react-redux";
+import { 
+  createExpense, 
+  deleteExpense, 
+  fetchPersonalExpenses 
+} from "../reducers/expenseSlice";
+import { fetchPersonalAnalytics, fetchPersonalCategoryAnalytics } from "../reducers/analyticsSlice";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8", "#dfe6e9", "#b2bec3"];
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PersonalExpensesPage() {
-  const { user } = useAuth();
-  const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [successAlert, setSuccessAlert] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+  const personalExpenses = useSelector((state) => state.expense.personal);
+  const personalAnalytics = useSelector((state) => state.analytics.personal);
+  const personalCategoryAnalytics = useSelector((state) => state.analytics.personalCategories);
 
-  const fetchExpenses = async () => {
-    try {
-      setLoading(true);
-      const data = await getPersonalExpenses();
-      setExpenses(data.expenses);
-    } catch (err) {
-      setError("Failed to fetch expenses.");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    const loadExpenses = async () => {
-      await fetchExpenses();
-     }
-    loadExpenses();
-  }, []);
+    dispatch(fetchPersonalExpenses());
+    dispatch(fetchPersonalAnalytics());
+    dispatch(fetchPersonalCategoryAnalytics());
+  }, [dispatch]);
 
-  const handleAddExpense = async (data) => {
-    setSubmitting(true);
-    try {
-      await createExpense({...data, type: "personal", paidBy: user?._id || user?.id});
+  useEffect(() => {
+    // Monthly analytics data
+    if (Array.isArray(personalAnalytics?.data) && personalAnalytics.data.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMonthlyData(
+        personalAnalytics.data.map((item) => ({
+          month: MONTH_LABELS[parseInt(item.month) - 1] || item.month,
+          total: item.total,
+        }))
+      );
+    } else {
+      setMonthlyData([]);
+    }
+  }, [personalAnalytics?.data]);
+
+  useEffect(() => {
+    // Category analytics data
+    if (Array.isArray(personalCategoryAnalytics?.data) && personalCategoryAnalytics.data.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCategoryData(
+        personalCategoryAnalytics.data.map((item) => ({
+          name: item.category,
+          value: item.total,
+        }))
+      );
+    } else {
+      setCategoryData([]);
+    }
+  }, [personalCategoryAnalytics?.data]);
+
+  const handleAddExpense = async (formData) => {
+    const result = await dispatch(createExpense({
+      ...formData,
+      type: "personal",
+      paidBy: user?._id || user?.id,
+    }));
+    if (result.type === createExpense.fulfilled.type) {
       setShowForm(false);
-      setSuccessAlert("Expense added successfully!");
-      setTimeout(() => setSuccessAlert(""), 3000);
-      await fetchExpenses();
-    } catch (err) {
-      setError(err.message || "Failed to add expense.");
-      console.error(err);
-    } finally {
-      setSubmitting(false);
+      setSuccessMessage("Expense added successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchPersonalExpenses());
+      dispatch(fetchPersonalAnalytics());
+      dispatch(fetchPersonalCategoryAnalytics());
     }
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    try {
-      await deleteExpense(expenseId);
-      setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
-      setSuccessAlert("Expense deleted.");
-      setTimeout(() => setSuccessAlert(""), 2000);
-    } catch (err) {
-      setError(err.message || "Failed to delete expense.");
-      console.error(err);
+    const result = await dispatch(deleteExpense(expenseId));
+    if (result.type === deleteExpense.fulfilled.type) {
+      setSuccessMessage("Expense deleted.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchPersonalExpenses());
+      dispatch(fetchPersonalAnalytics());
+      dispatch(fetchPersonalCategoryAnalytics());
     }
   };
 
-  // Monthly bar chart data
-  const monthlyMap = expenses.reduce((acc, e) => {
-    const month = new Date(e.date).getMonth();
-    acc[month] = (acc[month] || 0) + e.amount;
-    return acc;
-  }, {});
-  const monthlyData = Object.entries(monthlyMap)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([month, amount]) => ({ name: MONTH_LABELS[Number(month)], amount }));
+  const totalSpent = Array.isArray(personalExpenses?.data) 
+    ? personalExpenses.data.reduce((sum, e) => sum + (e?.amount || 0), 0) 
+    : 0;
 
-  // Category pie chart data
-  const categoryMap = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
-    return acc;
-  }, {});
-  const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
-
-  const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-  if (loading) {
+  if (personalExpenses.loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
@@ -101,14 +109,9 @@ export default function PersonalExpensesPage() {
 
   return (
     <Container fluid="xl" className="py-4">
-      {successAlert && (
-        <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
-          {successAlert}
-        </Alert>
-      )}
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError("")} className="mb-3">
-          {error}
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage("")} className="mb-3">
+          {successMessage}
         </Alert>
       )}
 
@@ -120,7 +123,7 @@ export default function PersonalExpensesPage() {
             <span className="fw-bold" style={{ color: "#e94560" }}>
               ₹{totalSpent.toLocaleString("en-IN")}
             </span>
-            {" "}across {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
+            {" "}across {personalExpenses.data?.length || 0} expense{personalExpenses.data?.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Button
@@ -137,7 +140,6 @@ export default function PersonalExpensesPage() {
           <PersonalExpenseForm
             onSubmit={handleAddExpense}
             onCancel={() => setShowForm(false)}
-            submitting={submitting}
           />
         </Modal.Body>
       </Modal>
@@ -156,10 +158,10 @@ export default function PersonalExpensesPage() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₹${v}`} />
                     <Tooltip formatter={(value) => [`₹${value.toLocaleString("en-IN")}`, "Spent"]} />
-                    <Bar dataKey="amount" fill="#4ecdc4" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="total" fill="#4ecdc4" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -173,13 +175,13 @@ export default function PersonalExpensesPage() {
               🍕 Category Breakdown
             </Card.Header>
             <Card.Body>
-              {pieData.length === 0 ? (
+              {categoryData.length === 0 ? (
                 <Alert variant="info" className="small">No data to chart yet.</Alert>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={pieData.map((item, index) => ({ ...item, fill: PIE_COLORS[index % PIE_COLORS.length] }))}
+                      data={categoryData.map((item, index) => ({ ...item, fill: PIE_COLORS[index % PIE_COLORS.length] }))}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
@@ -205,7 +207,7 @@ export default function PersonalExpensesPage() {
         </Card.Header>
         <Card.Body className="p-3">
           <PersonalExpenseLedger
-            expenses={expenses}
+            expenses={personalExpenses.data || []}
             onDeleteExpense={handleDeleteExpense}
           />
         </Card.Body>

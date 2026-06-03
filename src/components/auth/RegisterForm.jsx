@@ -1,10 +1,15 @@
 import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { Form, Button, Card, Alert } from "react-bootstrap";
+import { register } from "../../reducers/authSlice";
 import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function RegisterForm({ onSwitchToLogin, onRegister, authError = "", loading = false }) {
+export default function RegisterForm({ onSwitchToLogin }) {
+  const dispatch = useDispatch();
+  const { loading, register: registerState } = useSelector((state) => state.auth);
+  
   const [form, setForm] = useState({ username: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState({});
   const validate = () => {
@@ -45,16 +50,16 @@ export default function RegisterForm({ onSwitchToLogin, onRegister, authError = 
       setErrors(validationErrors);
       return;
     }
-    if (onRegister) {
-      try {
-        await onRegister(form);
-        setForm({ username: "", email: "", password: "", confirmPassword: "" });
-        setErrors({});
-      } catch (err) {
-        // use error message from API if available
-        const errorMessage = err.message || "An unexpected error occurred. Please try again.";
-        setErrors((prev) => ({ ...prev, form: errorMessage }));
-      }
+    try {
+      const result = await dispatch(register({
+        username: form.username,
+        email: form.email,
+        password: form.password
+      })).unwrap();
+      setForm({ username: "", email: "", password: "", confirmPassword: "" });
+      setErrors({});
+    } catch (err) {
+      // Error is already handled by Redux, no need to set errors here
     }
   };
 
@@ -64,8 +69,7 @@ export default function RegisterForm({ onSwitchToLogin, onRegister, authError = 
         <Card.Title className="auth-title">Create Account</Card.Title>
         <p className="auth-subtitle">Join Bill Bloom and manage your expenses</p>
 
-        {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
-        {!authError && errors.form && <Alert variant="danger" className="mb-3">{errors.form}</Alert>}
+        {registerState?.error && <Alert variant="danger" className="mb-3">{registerState.error}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">

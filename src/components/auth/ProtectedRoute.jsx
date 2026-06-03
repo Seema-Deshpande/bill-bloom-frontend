@@ -1,9 +1,11 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { Spinner } from "react-bootstrap";
-import useAuth  from "../../context/useAuth.jsx";
+  import { useSelector } from "react-redux";
 
 export default function ProtectedRoute() {
-  const { isAuthenticated, loading } = useAuth();
+  // Read authentication state from Redux
+  const { token, loading } = useSelector((state) => state.auth);
+  const isAuthenticated = !!token;
 
   if (loading) {
     return (

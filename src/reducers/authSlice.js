@@ -19,7 +19,7 @@ const initialState = {
         status: 'idle',
         error: null
     }
-};
+}
 
 // Async Thunks
 export const login = createAsyncThunk(
@@ -35,7 +35,7 @@ export const login = createAsyncThunk(
             return rejectWithValue(message);
         }
     }
-);
+)
 
 export const register = createAsyncThunk(
     'auth/register',
@@ -49,7 +49,7 @@ export const register = createAsyncThunk(
             return rejectWithValue(message);
         }
     }
-);
+)
 
 export const fetchCurrentUser = createAsyncThunk(
     'auth/fetchCurrentUser',
@@ -64,7 +64,7 @@ export const fetchCurrentUser = createAsyncThunk(
             return rejectWithValue(error.message || 'Failed to fetch user');
         }
     }
-);
+)
 
 const authSlice = createSlice({
     name: 'auth',

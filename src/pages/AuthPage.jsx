@@ -1,32 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Container, Row, Col } from "react-bootstrap";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import LoginForm from "../components/auth/LoginForm";
 import RegisterForm from "../components/auth/RegisterForm";
-import useAuth from "../context/useAuth";
+import { clearError } from "../reducers/authSlice";
 
 export default function AuthPage({ page }) {
   const [view, setView] = useState(page || "login");
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register, isAuthenticated, loading, error } = useAuth();
+  const dispatch = useDispatch();
 
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  // Read from Redux store
+  const { token, register: registerState } = useSelector(
+    (state) => state.auth
+  );
 
-  const handleLogin = async (email, password) => {
-    await login(email, password);
-    navigate(location.state?.from || "/", { replace: true });
-  };
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (token) {
+      navigate("/", { replace: true });
+    }
+  }, [token, navigate]);
 
-  const handleRegister = async (data) => {
-    await register(data);
-    navigate("/login", {
-      replace: true,
-      state: { message: "Registration successful. Please sign in." },
-    });
-  };
+  // Redirect on successful registration
+  useEffect(() => {
+    if (registerState?.status === 'succeeded') {
+      navigate("/login", {
+        replace: true,
+        state: { message: "Registration successful. Please sign in." },
+      });
+    }
+  }, [registerState?.status, navigate]);
+
+  // Clear errors when navigating between login/register
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [view, dispatch]);
 
   const handleSwitchToRegister = () => {
     setView("register");
@@ -45,17 +58,10 @@ export default function AuthPage({ page }) {
           {view === "login" ? (
             <LoginForm
               onSwitchToRegister={handleSwitchToRegister}
-              onLogin={handleLogin}
-              authError={error}
-              loading={loading}
-              infoMessage={location.state?.message || ""}
             />
           ) : view === "register" ? (
             <RegisterForm
               onSwitchToLogin={handleSwitchToLogin}
-              onRegister={handleRegister}
-              authError={error}
-              loading={loading}
             />
           ) : (
             <p className="text-muted text-center">Invalid view.</p>

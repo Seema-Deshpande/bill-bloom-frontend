@@ -4,25 +4,25 @@ import {
   Container, Card, Button, Spinner, Alert, Modal, Form
 } from "react-bootstrap";
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import useAuth from "../context/useAuth.jsx";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  getGroupById,
+  fetchGroupById,
   updateGroup,
   deleteGroup,
-} from "../services/groupService";
+} from "../reducers/groupSlice";
 import {  
   createExpense,
   deleteExpense,
-  getGroupExpenses,
-} from "../services/expenseService";
+  fetchGroupExpenses,
+} from "../reducers/expenseSlice";
 import {
-  getCalculatedSettlements,
+  calculateSettlements,
   recordSettlement,
-  getGroupSettlements,
-} from "../services/settlementService";
+  fetchGroupSettlementHistory,
+} from "../reducers/settlementSlice";
 import {
-  getGroupCategories
-} from "../services/analyticsService";
+  fetchGroupCategoryAnalytics
+} from "../reducers/analyticsSlice";
 import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
 import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
 import SettlementSummary from "../components/settlements/SettlementSummary";
@@ -33,148 +33,126 @@ const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5
 export default function GroupDetailPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const dispatch = useDispatch();
+  
+  const { user } = useSelector((state) => state.auth);
+  const { detail: groupDetail } = useSelector((state) => state.group);
+  const groupExpenses = useSelector((state) => state.expense.group.data[groupId] || []);
+  const groupCategories = useSelector((state) => state.analytics.groupCategories);
+  const calculatedSettlements = useSelector((state) => state.settlement.calculated.data[groupId] || []);
+  const settlementsHistory = useSelector((state) => state.settlement.history.data[groupId] || []);
 
-  const [group, setGroup] = useState(null);
-  const [expenses, setExpenses] = useState([]);
   const [pieData, setPieData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [successAlert, setSuccessAlert] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
-
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
-  const [calculatedSettlements, setCalculatedSettlements] = useState([]);
-  const [settlementsHistory, setSettlementsHistory] = useState([]);
-  const [loadingSettlements, setLoadingSettlements] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
-  const [recordingPayment, setRecordingPayment] = useState(false);
-
-  const fetchGroupData = async () => {
-    try {
-      const [groupRes, expensesData, categoryData] = await Promise.all([
-        getGroupById(groupId),
-        getGroupExpenses(groupId),
-        getGroupCategories(groupId),
-      ]);
-      setGroup(groupRes.group || groupRes);
-      setExpenses(expensesData.expenses || []);
-      setPieData(
-        (categoryData.data || []).map((item) => ({ name: item.category, value: item.total }))
-      );
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchGroupData();
-  }, [groupId]);
+    dispatch(fetchGroupById(groupId));
+    dispatch(fetchGroupExpenses(groupId));
+    dispatch(fetchGroupCategoryAnalytics(groupId));
+    dispatch(calculateSettlements(groupId));
+    dispatch(fetchGroupSettlementHistory(groupId));
+  }, [dispatch, groupId]);
+
+  // Transform category data to pie chart format
+  useEffect(() => {
+    const categoryData = groupCategories?.data?.[groupId];
+    if (Array.isArray(categoryData) && categoryData.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPieData(
+        categoryData.map((item) => ({ 
+          name: item.category, 
+          value: item.total 
+        }))
+      );
+    }
+  }, [groupId, groupCategories?.data]);
+
+  // Initialize edit name from group data
+  useEffect(() => {
+    if (!editName && groupDetail.data?.name) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditName(groupDetail.data.name);
+    }
+  }, [groupDetail.data?.name, editName]);
 
   const handleAddExpense = async (formData) => {
-    try {
-      await createExpense({ ...formData, type: "group", groupId, paidBy: formData.paidBy });
+    const result = await dispatch(createExpense({ 
+      ...formData, 
+      type: "group", 
+      groupId, 
+      paidBy: formData.paidBy 
+    }));
+    if (result.type === createExpense.fulfilled.type) {
       setShowExpenseForm(false);
-      setSuccessAlert("Expense added successfully!");
-      setTimeout(() => setSuccessAlert(""), 3000);
-      fetchGroupData();
-    } catch (err) {
-      setError(err.message);
+      setSuccessMessage("Expense added successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchGroupExpenses(groupId));
+      dispatch(fetchGroupCategoryAnalytics(groupId));
+      dispatch(calculateSettlements(groupId));
     }
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    try {
-      await deleteExpense(expenseId);
-      setExpenses((prev) => prev.filter((e) => e._id !== expenseId));
-      setSuccessAlert("Expense deleted.");
-      setTimeout(() => setSuccessAlert(""), 2000);
-    } catch (err) {
-      setError(err.message);
+    const result = await dispatch(deleteExpense(expenseId));
+    if (result.type === deleteExpense.fulfilled.type) {
+      setSuccessMessage("Expense deleted.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchGroupExpenses(groupId));
+      dispatch(fetchGroupCategoryAnalytics(groupId));
+      dispatch(calculateSettlements(groupId));
     }
   };
 
   const handleEditSave = async () => {
     if (!editName.trim()) return;
-    setEditSaving(true);
-    try {
-      const data = await updateGroup(groupId, { name: editName.trim() });
-      setGroup(data.group);
+    const result = await dispatch(updateGroup({ 
+      groupId, 
+      groupData: { name: editName.trim() } 
+    }));
+    if (result.type === updateGroup.fulfilled.type) {
       setShowEditModal(false);
-      setSuccessAlert("Group name updated!");
-      setTimeout(() => setSuccessAlert(""), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setEditSaving(false);
+      setSuccessMessage("Group name updated!");
+      setTimeout(() => setSuccessMessage(""), 3000);
     }
   };
 
   const handleDeleteGroup = async () => {
-    setDeleting(true);
-    try {
-      await deleteGroup(groupId);
+    const result = await dispatch(deleteGroup(groupId));
+    if (result.type === deleteGroup.fulfilled.type) {
       navigate("/groups");
-    } catch (err) {
-      setError(err.message);
-      setDeleting(false);
     }
   };
 
   const handleOpenSettlements = async () => {
-    setLoadingSettlements(true);
     setShowSettleConfirm(false);
-    try {
-      const [calcData, histData] = await Promise.all([
-        getCalculatedSettlements(groupId),
-        getGroupSettlements(groupId),
-      ]);
-      setCalculatedSettlements(calcData.settlements || []);
-      setSettlementsHistory(histData.settlements || []);
-      setShowSettlements(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoadingSettlements(false);
-    }
+    setShowSettlements(true);
   };
 
   const handlePayConfirm = async (settlement) => {
-    setRecordingPayment(true);
-    try {
-      await recordSettlement({
-        fromId: settlement.from,
-        toId: settlement.to,
-        amount: settlement.amount,
-        groupId,
-      });
+    const result = await dispatch(recordSettlement({
+      fromId: settlement.from,
+      toId: settlement.to,
+      amount: settlement.amount,
+      groupId,
+    }));
+    if (result.type === recordSettlement.fulfilled.type) {
       setSelectedPayment(null);
-      setSuccessAlert(`Payment of Rs.${settlement.amount.toLocaleString("en-IN")} recorded!`);
-      setTimeout(() => setSuccessAlert(""), 3000);
-      const [calcData, histData] = await Promise.all([
-        getCalculatedSettlements(groupId),
-        getGroupSettlements(groupId),
-      ]);
-      setCalculatedSettlements(calcData.settlements || []);
-      setSettlementsHistory(histData.settlements || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setRecordingPayment(false);
+      setSuccessMessage(`Payment of Rs.${settlement.amount.toLocaleString("en-IN")} recorded!`);
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(calculateSettlements(groupId));
+      dispatch(fetchGroupSettlementHistory(groupId));
     }
   };
 
-  if (loading) {
+  if (groupDetail.loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
@@ -185,32 +163,39 @@ export default function GroupDetailPage() {
     );
   }
 
-  if (!group) {
+  if (!groupDetail.data) {
     return (
       <Container className="py-4">
-        <Alert variant="danger">{error || "Group not found."}</Alert>
+        <Alert variant="danger">{groupDetail.error || "Group not found."}</Alert>
         <Button variant="link" onClick={() => navigate("/groups")}>Back to Groups</Button>
       </Container>
     );
   }
 
+  const group = groupDetail.data;
   const memberMap = {};
   (group.members || []).forEach((m) => {
     memberMap[m._id] = m.username;
   });
 
+  // Fix: Handle createdBy - could be a string ID or an object
+  let creatorName = "Unknown";
+  if (group.createdBy) {
+    if (typeof group.createdBy === 'object' && group.createdBy.username) {
+      creatorName = group.createdBy.username;
+    } else {
+      const createdById = group.createdBy?._id || group.createdBy;
+      creatorName = memberMap[createdById] || "Unknown";
+    }
+  }
+
   const isGroupCreator = (group.createdBy?._id || group.createdBy) === (user?._id || user?.id);
 
   return (
     <Container fluid="xl" className="py-4">
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError("")}>
-          {error}
-        </Alert>
-      )}
-      {successAlert && (
-        <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
-          {successAlert}
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage("")} className="mb-3">
+          {successMessage}
         </Alert>
       )}
 
@@ -220,7 +205,7 @@ export default function GroupDetailPage() {
           <div>
             <h3 className="fw-bold mb-1" style={{ color: "#1a1a2e" }}>{group.name}</h3>
             <p className="text-muted small mb-1">
-              Created by <strong>{group.createdBy?.username || memberMap[group.createdBy?._id || group.createdBy] || "Unknown"}</strong>
+              Created by <strong>{creatorName}</strong>
             </p>
             <p className="text-muted small mb-0">
               {group.members?.length} member{group.members?.length !== 1 ? "s" : ""}:{" "}
@@ -233,7 +218,7 @@ export default function GroupDetailPage() {
                 <Button
                   variant="outline-secondary"
                   size="sm"
-                  onClick={() => { setEditName(group.name); setShowEditModal(true); }}
+                  onClick={() => setShowEditModal(true)}
                 >
                   Edit
                 </Button>
@@ -253,7 +238,6 @@ export default function GroupDetailPage() {
         </Card.Body>
       </Card>
 
-
       {/* Settlement Section */}
       <Card className="border-0 shadow-sm mb-4">
         <Card.Header className="bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
@@ -263,13 +247,8 @@ export default function GroupDetailPage() {
               style={{ backgroundColor: "#e94560", border: "none" }}
               size="sm"
               onClick={() => setShowSettleConfirm(true)}
-              disabled={loadingSettlements}
             >
-              {loadingSettlements ? (
-                <><Spinner size="sm" animation="border" className="me-1" />Calculating...</>
-              ) : (
-                "Make Final Settlement"
-              )}
+              Make Final Settlement
             </Button>
           )}
         </Card.Header>
@@ -296,7 +275,7 @@ export default function GroupDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {settlementsHistory.map((s) => (
+                      {Array.isArray(settlementsHistory) ? settlementsHistory.map((s) => (
                         <tr key={s._id}>
                           <td className="py-2 px-3 fw-semibold text-danger">
                             {s.fromUser?.username || memberMap[s.fromUser?._id] || "?"}
@@ -313,7 +292,13 @@ export default function GroupDetailPage() {
                             {new Date(s.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                           </td>
                         </tr>
-                      ))}
+                      )) : (
+                        <tr>
+                          <td colSpan="4" className="text-center py-3 text-muted">
+                            No settlement history yet.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -332,7 +317,7 @@ export default function GroupDetailPage() {
           <Card.Body>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={pieData.map((item, i) => ({ ...item, fill: PIE_COLORS[i % PIE_COLORS.length] }))}
+                <Pie data={Array.isArray(pieData) ? pieData.map((item, i) => ({ ...item, fill: PIE_COLORS[i % PIE_COLORS.length] })) : []}
                   dataKey="value"
                   nameKey="name"
                   cx="50%" cy="50%"
@@ -360,7 +345,7 @@ export default function GroupDetailPage() {
         </Card.Header>
         <Card.Body className="p-3">
           <GroupExpenseLedger
-            expenses={expenses}
+            expenses={groupExpenses}
             members={group.members || []}
             isGroupCreator={isGroupCreator}
             onDeleteExpense={handleDeleteExpense}
@@ -414,9 +399,8 @@ export default function GroupDetailPage() {
           <Button
             style={{ backgroundColor: "#e94560", border: "none" }}
             onClick={handleEditSave}
-            disabled={editSaving}
           >
-            {editSaving ? "Saving..." : "Save"}
+            Save
           </Button>
         </Modal.Footer>
       </Modal>
@@ -431,8 +415,8 @@ export default function GroupDetailPage() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDeleteGroup} disabled={deleting}>
-            {deleting ? "Deleting..." : "Delete"}
+          <Button variant="danger" onClick={handleDeleteGroup}>
+            Delete
           </Button>
         </Modal.Footer>
       </Modal>
@@ -443,7 +427,6 @@ export default function GroupDetailPage() {
         members={memberMap}
         onConfirm={handlePayConfirm}
         onCancel={() => setSelectedPayment(null)}
-        confirming={recordingPayment}
       />
     </Container>
   );

@@ -1,12 +1,12 @@
 import { Card, Badge, Button } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
-import useAuth from "../../context/useAuth.jsx";
+import { useSelector } from "react-redux";
 
 const BG_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#6c5ce7", "#00b894"];
 
 export default function GroupCard({ group, onEdit, onDelete }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useSelector((state) => state.auth);
   const creator = group.createdBy; 
   const isCreator = user && creator && user.id === creator._id;
   const colorIndex = group._id?.toString().charCodeAt(group._id.length - 1) % BG_COLORS.length || 0;

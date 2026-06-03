@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { Container, Row, Col, Card, Spinner, Alert, Form } from "react-bootstrap";
+import { useDispatch, useSelector } from "react-redux";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Legend,
 } from "recharts";
 import {
-  getMonthlyPersonal, getGroupSpending, getPersonalCategories, getGroupCategories,
-} from "../services/analyticsService.js";
-import { getGroups } from "../services/groupService.js";
+  fetchPersonalAnalytics,
+  fetchGroupAnalytics,
+  fetchPersonalCategoryAnalytics,
+  fetchGroupCategoryAnalytics,
+} from "../reducers/analyticsSlice";
+import { fetchAllGroups } from "../reducers/groupSlice";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const PIE_COLORS = ["#6c63ff", "#e94560", "#43C59E", "#f5a623", "#4facfe", "#f093fb", "#a8edea", "#fd746c"];
@@ -34,64 +38,66 @@ function SectionCard({ title, loading, error, children }) {
 }
 
 export default function AnalyticsDashboard() {
-  const [monthly, setMonthly] = useState([]);
-  const [monthlyLoading, setMonthlyLoading] = useState(true);
-  const [monthlyError, setMonthlyError] = useState("");
-
-  const [groupSpend, setGroupSpend] = useState([]);
-  const [groupSpendLoading, setGroupSpendLoading] = useState(true);
-  const [groupSpendError, setGroupSpendError] = useState("");
-
-  const [personalCat, setPersonalCat] = useState([]);
-  const [personalCatLoading, setPersonalCatLoading] = useState(true);
-  const [personalCatError, setPersonalCatError] = useState("");
-
-  const [groups, setGroups] = useState([]);
+  const dispatch = useDispatch();
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [groupCat, setGroupCat] = useState([]);
-  const [groupCatLoading, setGroupCatLoading] = useState(false);
-  const [groupCatError, setGroupCatError] = useState("");
 
+  // Read from Redux store
+  const { personal: personalAnalytics, group: groupAnalytics, personalCategories, groupCategories } = useSelector(
+    (state) => state.analytics
+  );
+  const { list: groupsList } = useSelector((state) => state.group);
+
+  // Initialize data on component mount
   useEffect(() => {
-    getMonthlyPersonal()
-      .then((data) => {
-        const formatted = (data.data || []).map((d) => ({
-          label: `${MONTH_NAMES[(d.month || 1) - 1]} ${d.year}`,
-          total: d.total,
-        }));
-        setMonthly(formatted);
-      })
-      .catch((e) => setMonthlyError(e.message))
-      .finally(() => setMonthlyLoading(false));
+    dispatch(fetchPersonalAnalytics());
+    dispatch(fetchGroupAnalytics());
+    dispatch(fetchPersonalCategoryAnalytics());
+    dispatch(fetchAllGroups());
+  }, [dispatch]);
 
-    getGroupSpending()
-      .then((data) => setGroupSpend(data.data || []))
-      .catch((e) => setGroupSpendError(e.message))
-      .finally(() => setGroupSpendLoading(false));
-
-    getPersonalCategories()
-      .then((data) => setPersonalCat(data.data || []))
-      .catch((e) => setPersonalCatError(e.message))
-      .finally(() => setPersonalCatLoading(false));
-
-    getGroups()
-      .then((data) => {
-        const list = data.groups || [];
-        setGroups(list);
-        if (list.length > 0) setSelectedGroupId(list[0]._id);
-      })
-      .catch(() => {});
-  }, []);
-
+  // When groups are loaded, set default selected group
   useEffect(() => {
-    if (!selectedGroupId) return;
-    setGroupCatLoading(true);
-    setGroupCatError("");
-    getGroupCategories(selectedGroupId)
-      .then((data) => setGroupCat(data.data || []))
-      .catch((e) => setGroupCatError(e.message))
-      .finally(() => setGroupCatLoading(false));
-  }, [selectedGroupId]);
+    if (Array.isArray(groupsList?.data) && groupsList.data.length > 0 && !selectedGroupId) {
+      setSelectedGroupId(groupsList.data[0]._id);
+    }
+  }, [groupsList?.data, selectedGroupId]);
+
+  // Fetch group categories when selected group changes
+  useEffect(() => {
+    if (selectedGroupId) {
+      dispatch(fetchGroupCategoryAnalytics(selectedGroupId));
+    }
+  }, [selectedGroupId, dispatch]);
+
+  // Transform personal analytics data
+  const monthlyData = Array.isArray(personalAnalytics?.data?.monthly)
+    ? personalAnalytics.data.monthly.map((d) => ({
+        label: `${MONTH_NAMES[(d.month || 1) - 1]} ${d.year}`,
+        total: d.total,
+      }))
+    : Array.isArray(personalAnalytics?.data)
+    ? personalAnalytics.data.map((d) => ({
+        label: `${MONTH_NAMES[(d.month || 1) - 1]} ${d.year}`,
+        total: d.total,
+      }))
+    : [];
+
+  // Transform group analytics data
+  const groupSpendData = Array.isArray(groupAnalytics?.data) ? groupAnalytics.data : [];
+
+  // Transform personal category data
+  const personalCatData = Array.isArray(personalCategories?.data?.categories)
+    ? personalCategories.data.categories
+    : Array.isArray(personalCategories?.data)
+    ? personalCategories.data
+    : [];
+
+  // Transform group category data for selected group
+  const groupCatData = selectedGroupId && groupCategories?.data?.[selectedGroupId]
+    ? groupCategories.data[selectedGroupId]
+    : [];
+
+  const groups = Array.isArray(groupsList?.data) ? groupsList.data : [];
 
   return (
     <Container className="py-4">
@@ -100,12 +106,16 @@ export default function AnalyticsDashboard() {
       <Row className="g-4">
         {/* Monthly Personal Spending */}
         <Col xs={12} lg={6}>
-          <SectionCard title="Monthly Personal Spending" loading={monthlyLoading} error={monthlyError}>
-            {monthly.length === 0 ? (
+          <SectionCard
+            title="Monthly Personal Spending"
+            loading={personalAnalytics?.loading}
+            error={personalAnalytics?.error}
+          >
+            {monthlyData.length === 0 ? (
               <p className="text-muted text-center py-4">No data yet.</p>
             ) : (
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={monthly} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
@@ -119,12 +129,16 @@ export default function AnalyticsDashboard() {
 
         {/* Group Spending */}
         <Col xs={12} lg={6}>
-          <SectionCard title="Spending by Group" loading={groupSpendLoading} error={groupSpendError}>
-            {groupSpend.length === 0 ? (
+          <SectionCard
+            title="Spending by Group"
+            loading={groupAnalytics?.loading}
+            error={groupAnalytics?.error}
+          >
+            {groupSpendData.length === 0 ? (
               <p className="text-muted text-center py-4">No group expenses yet.</p>
             ) : (
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={groupSpend} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={groupSpendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="groupName" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
@@ -138,13 +152,28 @@ export default function AnalyticsDashboard() {
 
         {/* Personal Category Breakdown */}
         <Col xs={12} lg={6}>
-          <SectionCard title="Personal Expenses by Category" loading={personalCatLoading} error={personalCatError}>
-            {personalCat.length === 0 ? (
+          <SectionCard
+            title="Personal Expenses by Category"
+            loading={personalCategories?.loading}
+            error={personalCategories?.error}
+          >
+            {personalCatData.length === 0 ? (
               <p className="text-muted text-center py-4">No personal expenses yet.</p>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={personalCat.map((item, i) => ({ ...item, fill: PIE_COLORS[i % PIE_COLORS.length] }))} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={90} label={({ category }) => category} />
+                  <Pie
+                    data={personalCatData.map((item, i) => ({
+                      ...item,
+                      fill: PIE_COLORS[i % PIE_COLORS.length],
+                    }))}
+                    dataKey="total"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label={({ category }) => category}
+                  />
                   <Tooltip formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Total"]} />
                   <Legend />
                 </PieChart>
@@ -157,8 +186,8 @@ export default function AnalyticsDashboard() {
         <Col xs={12} lg={6}>
           <SectionCard
             title="Group Expenses by Category"
-            loading={groupCatLoading && selectedGroupId !== ""}
-            error={groupCatError}
+            loading={groupCategories?.loading && selectedGroupId !== ""}
+            error={groupCategories?.error}
           >
             {groups.length === 0 ? (
               <p className="text-muted text-center py-4">No groups found.</p>
@@ -174,16 +203,27 @@ export default function AnalyticsDashboard() {
                     <option key={g._id} value={g._id}>{g.name}</option>
                   ))}
                 </Form.Select>
-                {groupCatLoading ? (
+                {groupCategories?.loading && selectedGroupId !== "" ? (
                   <div className="d-flex justify-content-center py-4">
                     <Spinner animation="border" size="sm" variant="primary" />
                   </div>
-                ) : groupCat.length === 0 ? (
+                ) : groupCatData.length === 0 ? (
                   <p className="text-muted text-center py-4">No expenses for this group.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={groupCat.map((item, i) => ({ ...item, fill: PIE_COLORS[i % PIE_COLORS.length] }))} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={80} label={({ category }) => category} />
+                      <Pie
+                        data={groupCatData.map((item, i) => ({
+                          ...item,
+                          fill: PIE_COLORS[i % PIE_COLORS.length],
+                        }))}
+                        dataKey="total"
+                        nameKey="category"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label={({ category }) => category}
+                      />
                       <Tooltip formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Total"]} />
                       <Legend />
                     </PieChart>

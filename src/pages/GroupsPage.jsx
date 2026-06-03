@@ -1,90 +1,90 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Container, Row, Col, Button, Alert, Spinner, Card, Modal } from "react-bootstrap";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useDispatch, useSelector } from "react-redux";
 import GroupCard from "../components/groups/GroupCard";
 import CreateGroupForm from "../components/groups/CreateGroupForm";
 import EditGroupForm from "../components/groups/EditGroupForm";
-import { getGroups, createGroup, updateGroup, deleteGroup } from "../services/groupService";
-import { getGroupSpending } from "../services/analyticsService";
+import { fetchAllGroups, createGroup, updateGroup, deleteGroup } from "../reducers/groupSlice";
+import { fetchGroupAnalytics } from "../reducers/analyticsSlice";
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const dispatch = useDispatch();
   const [showForm, setShowForm] = useState(false);
-  const [successAlert, setSuccessAlert] = useState("");
-  const [chartData, setChartData] = useState([]);
   const [editingGroup, setEditingGroup] = useState(null);
   const [deletingGroup, setDeletingGroup] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const fetchGroups = async () => {
-    try {
-      const data = await getGroups();
-      setGroups(data.groups || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Read from Redux store
+  const { list: groupsList, create: createState, update: updateState, delete: deleteState } = useSelector((state) => state.group);
+  const { group: groupAnalytics } = useSelector((state) => state.analytics);
 
-  const fetchChart = async () => {
-    try {
-      const data = await getGroupSpending();
-      setChartData(
-        (data.data || []).map((d) => ({
-          name: d.groupName.length > 12 ? d.groupName.slice(0, 12) + "..." : d.groupName,
-          amount: Math.round(d.total),
-        }))
-      );
-    } catch {}
-  };
-
+  // Fetch data on mount
   useEffect(() => {
-    fetchGroups();
-    fetchChart();
-  }, []);
+    dispatch(fetchAllGroups());
+    dispatch(fetchGroupAnalytics());
+  }, [dispatch]);
 
+  // Handle create group
   const handleCreateGroup = async (payload) => {
-    try {
-      await createGroup(payload);
+    const result = await dispatch(createGroup(payload));
+    if (result.type === createGroup.fulfilled.type) {
       setShowForm(false);
-      setSuccessAlert(`Group "${payload.name}" created successfully!`);
-      setTimeout(() => setSuccessAlert(""), 3000);
-      fetchGroups();
-      fetchChart();
-    } catch (err) {
-      setError(err.message);
+      setSuccessMessage("Group created successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchAllGroups());
+      dispatch(fetchGroupAnalytics());
     }
   };
 
+  // Handle update group
   const handleEditGroup = async (payload) => {
-    try {
-      await updateGroup(editingGroup._id, payload);
+    if (!editingGroup) return;
+    const result = await dispatch(updateGroup({ groupId: editingGroup._id, groupData: payload }));
+    if (result.type === updateGroup.fulfilled.type) {
       setEditingGroup(null);
-      setSuccessAlert(`Group "${payload.name}" updated successfully!`);
-      setTimeout(() => setSuccessAlert(""), 3000);
-      fetchGroups();
-      fetchChart();
-    } catch (err) {
-      setError(err.message);
+      setShowEditModal(false);
+      setSuccessMessage("Group updated successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchAllGroups());
     }
   };
 
-  const handleDeleteGroup = async () => {
-    try {
-      await deleteGroup(deletingGroup._id);
+  // Handle delete group
+  const handleDeleteGroup = async (groupId) => {
+    const result = await dispatch(deleteGroup(groupId));
+    if (result.type === deleteGroup.fulfilled.type) {
       setDeletingGroup(null);
-      setSuccessAlert(`Group "${deletingGroup.name}" deleted successfully!`);
-      setTimeout(() => setSuccessAlert(""), 3000);
-      fetchGroups();
-      fetchChart();
-    } catch (err) {
-      setError(err.message);
+      setShowDeleteConfirm(false);
+      setSuccessMessage("Group deleted successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      dispatch(fetchAllGroups());
+      dispatch(fetchGroupAnalytics());
     }
   };
 
-  if (loading) {
+  // Transform analytics data for chart
+  let analyticsData = [];
+  if (groupAnalytics?.data) {
+    // Handle both nested { data: [] } and direct array [] structures
+    if (Array.isArray(groupAnalytics.data)) {
+      analyticsData = groupAnalytics.data;
+    } else if (groupAnalytics.data?.data && Array.isArray(groupAnalytics.data.data)) {
+      analyticsData = groupAnalytics.data.data;
+    }
+  }
+  
+  const chartData = analyticsData.map((d) => ({
+    name: d.groupName?.length > 12 ? d.groupName.slice(0, 12) + "..." : d.groupName,
+    amount: Math.round(d.total || 0),
+  }));
+
+  const isLoading = groupsList?.loading;
+  const errorMsg = groupsList?.error || createState?.error || updateState?.error || deleteState?.error;
+
+  if (isLoading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
@@ -97,14 +97,14 @@ export default function GroupsPage() {
 
   return (
     <Container fluid="xl" className="py-4">
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError("")}>
-          {error}
+      {errorMsg && (
+        <Alert variant="danger" dismissible onClose={() => {}} className="mb-3">
+          {errorMsg}
         </Alert>
       )}
-      {successAlert && (
-        <Alert variant="success" dismissible onClose={() => setSuccessAlert("")} className="mb-3">
-          {successAlert}
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage("")} className="mb-3">
+          {successMessage}
         </Alert>
       )}
 
@@ -112,7 +112,7 @@ export default function GroupsPage() {
         <div>
           <h2 className="fw-bold mb-0" style={{ color: "#1a1a2e" }}>My Groups</h2>
           <p className="text-muted small mb-0">
-            {groups.length} group{groups.length !== 1 ? "s" : ""} in total
+            {Array.isArray(groupsList?.data) ? groupsList.data.length : 0} group{Array.isArray(groupsList?.data) && groupsList.data.length !== 1 ? "s" : ""} in total
           </p>
         </div>
         <Button
@@ -125,23 +125,24 @@ export default function GroupsPage() {
 
       <Modal show={showForm} onHide={() => setShowForm(false)} centered>
         <Modal.Body>
-          <CreateGroupForm onSubmit={handleCreateGroup} onCancel={() => setShowForm(false)} />
+          <CreateGroupForm onSubmit={handleCreateGroup} onCancel={() => setShowForm(false)} loading={createState.loading} />
         </Modal.Body>
       </Modal>
 
-      <Modal show={!!editingGroup} onHide={() => setEditingGroup(null)} centered>
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
         <Modal.Body>
           {editingGroup && (
             <EditGroupForm
               group={editingGroup}
               onSubmit={handleEditGroup}
-              onCancel={() => setEditingGroup(null)}
+              onCancel={() => setShowEditModal(false)}
+              loading={updateState.loading}
             />
           )}
         </Modal.Body>
       </Modal>
 
-      <Modal show={!!deletingGroup} onHide={() => setDeletingGroup(null)} centered>
+      <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Delete Group</Modal.Title>
         </Modal.Header>
@@ -150,7 +151,13 @@ export default function GroupsPage() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setDeletingGroup(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDeleteGroup}>Delete</Button>
+          <Button 
+            variant="danger" 
+            onClick={() => handleDeleteGroup(deletingGroup._id)}
+            disabled={deleteState.loading}
+          >
+            {deleteState.loading ? "Deleting..." : "Delete"}
+          </Button>
         </Modal.Footer>
       </Modal>
 
@@ -173,20 +180,28 @@ export default function GroupsPage() {
         </Card>
       )}
 
-      {groups.length === 0 ? (
+      {Array.isArray(groupsList?.data) && groupsList.data.length === 0 ? (
         <Alert variant="info">No groups yet. Create your first group using the button above!</Alert>
-      ) : (
+      ) : Array.isArray(groupsList?.data) ? (
         <Row className="g-3">
-          {groups.map((group) => (
+          {groupsList.data.map((group) => (
             <Col key={group._id} xs={12} sm={6} lg={4}>
               <GroupCard
                 group={group}
-                onEdit={setEditingGroup}
-                onDelete={setDeletingGroup}
+                onEdit={(g) => {
+                  setEditingGroup(g);
+                  setShowEditModal(true);
+                }}
+                onDelete={(g) => {
+                  setDeletingGroup(g);
+                  setShowDeleteConfirm(true);
+                }}
               />
             </Col>
           ))}
         </Row>
+      ) : (
+        <Alert variant="warning">Unable to load groups. Please try refreshing the page.</Alert>
       )}
     </Container>
   );

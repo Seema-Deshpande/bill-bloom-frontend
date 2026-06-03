@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Table, Button, Badge, Alert } from "react-bootstrap";
 
-const getMemberId = (member) => member?._id || member?.id || member;
-const getMemberName = (member) => member?.username || member?.name || member?.email || member;
 
 export default function GroupExpenseLedger({ expenses, members = [], isGroupCreator, onDeleteExpense, onDelete }) {
   const [deletingId, setDeletingId] = useState(null);
@@ -47,9 +45,10 @@ export default function GroupExpenseLedger({ expenses, members = [], isGroupCrea
   // Collect unique participant IDs across all expenses, preserving first-seen order
   const allParticipantIds = [...new Set(expenses.flatMap((e) => e.participants || []))];
   const allParticipants = allParticipantIds.map((id) => {
-    // Try to find the participant name from members, or if the expense has a populated object somewhere
+    // Try to find the participant name from members
     const nameFromMap = memberMap.get(id);
-    const username = (nameFromMap && nameFromMap !== id) ? nameFromMap : id;
+    // Use the name if found, otherwise fall back to the ID
+    const username = nameFromMap || id;
     return { id, username };
   });
 
@@ -84,9 +83,11 @@ export default function GroupExpenseLedger({ expenses, members = [], isGroupCrea
         {expenses.map((expense, index) => {
           const paidById = expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
           const nameFromMap = memberMap.get(paidById);
-          const paidByName = (nameFromMap && nameFromMap !== paidById) 
-            ? nameFromMap 
-            : (expense.paidBy?.username || expense.paidBy?.name || paidById || "Unknown");
+          const paidByName = nameFromMap 
+            || expense.paidBy?.username 
+            || expense.paidBy?.name 
+            || paidById 
+            || "Unknown";
           
           const splitAmount = expense.participants?.length
             ? (expense.amount / expense.participants.length)

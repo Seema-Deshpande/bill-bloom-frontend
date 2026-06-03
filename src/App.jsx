@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import Header from "./components/layout/Header";
 import NavLinks from "./components/layout/NavLinks";
 import Footer from "./components/layout/Footer";
@@ -9,10 +10,11 @@ import GroupsPage from "./pages/GroupsPage";
 import GroupDetailPage from "./pages/GroupDetailPage";
 import PersonalExpensesPage from "./pages/PersonalExpensesPage";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
-import  useAuth  from "./context/useAuth.jsx";
 
 export default function App() {
-  const { isAuthenticated } = useAuth();
+  // Read authentication state from Redux
+  const { token } = useSelector((state) => state.auth);
+  const isAuthenticated = !!token;
 
   return (
     <>

@@ -3,12 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Card, Container } from "react-bootstrap";
 import { computeGroupSettlements, currentUser, groups } from "../data/dummyData";
 import SettlementSummary from "../components/settlements/SettlementSummary";
-import useAuth from "../context/useAuth";
+import { useSelector } from "react-redux";
 
 export default function GroupSettlementsPage() {
   const navigate = useNavigate();
   const { groupId } = useParams();
-  const { user } = useAuth();
+  const { user } = useSelector((state) => state.auth);
   const activeUser = user ?? currentUser;
 
   const group = groups.find((item) => item._id === groupId);

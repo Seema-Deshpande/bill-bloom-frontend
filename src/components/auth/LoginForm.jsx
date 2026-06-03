@@ -1,10 +1,16 @@
 import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { Form, Button, Card, Alert } from "react-bootstrap";
+import { login } from "../../reducers/authSlice";
 import "../../App.css";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginForm({ onSwitchToRegister, onLogin, authError = "", loading = false, infoMessage = "" }) {
+export default function LoginForm({ onSwitchToRegister }) {
+  const dispatch = useDispatch();
+  const { loading, error: authError, login: loginState } = useSelector((state) => state.auth);
+  const infoMessage = loginState?.message || "";
+  
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
 
@@ -37,16 +43,13 @@ export default function LoginForm({ onSwitchToRegister, onLogin, authError = "",
       return;
     }
 
-    if (onLogin) {
-      try {
-        await onLogin(form.email, form.password);
-        setForm({ email: "", password: "" });
-        setErrors({});
-      } catch (err) {
-        // use error message from API if available
-        const errorMessage = err.message || "An unexpected error occurred. Please try again.";
-        setErrors((prev) => ({ ...prev, form: errorMessage }));
-      }
+    try {
+       await dispatch(login({ email: form.email, password: form.password })).unwrap();
+      setForm({ email: "", password: "" });
+      setErrors({});
+    } catch (err) {
+      // Error is already handled by Redux, no need to set errors here
+      console.error("Login failed:", err);
     }
   };
 
@@ -58,7 +61,7 @@ export default function LoginForm({ onSwitchToRegister, onLogin, authError = "",
 
         {infoMessage && <Alert variant="success" className="mb-3">{infoMessage}</Alert>}
         {authError && <Alert variant="danger" className="mb-3">{authError}</Alert>}
-        {!authError && errors.form && <Alert variant="danger" className="mb-3">{errors.form}</Alert>}
+        {loginState?.error && <Alert variant="danger" className="mb-3">{loginState.error}</Alert>}
 
         <Form onSubmit={handleSubmit} noValidate>
           <Form.Group className="mb-3">

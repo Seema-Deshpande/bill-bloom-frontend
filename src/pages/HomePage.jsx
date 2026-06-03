@@ -1,55 +1,78 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Container, Row, Col, Card, Button, Spinner, Alert } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
-import useAuth  from "../context/useAuth.jsx";
-import { getGroups } from "../services/groupService.js";
-import { getMonthlyPersonal } from "../services/analyticsService.js";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchAllGroups } from "../reducers/groupSlice";
+import { fetchPersonalAnalytics } from "../reducers/analyticsSlice";
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState([]);
-  const [error, setError] = useState("");
+
+  // Read from Redux store
+  const { user } = useSelector((state) => state.auth);
+  const { list: groupsList } = useSelector((state) => state.group);
+  const { personal: personalAnalytics } = useSelector((state) => state.analytics);
 
   useEffect(() => {
-    Promise.all([getGroups(), getMonthlyPersonal()])
-      .then(([groupsResponse, monthlyResponse]) => {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
+    // Dispatch async thunks
+    dispatch(fetchAllGroups());
+    dispatch(fetchPersonalAnalytics());
+  }, [dispatch]);
 
-        // Extract data from axios responses
-        const groupsData = groupsResponse.data || groupsResponse;
-        const monthlyData = monthlyResponse.data || monthlyResponse;
+  // Calculate stats from Redux data
+  const calculateStats = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
 
-        // Ensure monthlyData is an array
-        const monthlyArray = Array.isArray(monthlyData) ? monthlyData : (monthlyData.data || []);
+    // Safely extract data arrays from Redux state
+    let personalData = [];
+    if (personalAnalytics) {
+      // Handle if data is nested or direct array
+      if (Array.isArray(personalAnalytics?.data)) {
+        personalData = personalAnalytics.data;
+      } else if (personalAnalytics?.data?.data && Array.isArray(personalAnalytics.data.data)) {
+        personalData = personalAnalytics.data.data;
+      }
+    }
 
-        const thisMonth = monthlyArray
-          .filter((d) => d.year === currentYear && d.month === currentMonth)
-          .reduce((sum, d) => sum + d.total, 0);
+    let groupsData = [];
+    if (groupsList) {
+      if (Array.isArray(groupsList?.data)) {
+        groupsData = groupsList.data;
+      } else if (groupsList?.data?.data && Array.isArray(groupsList.data.data)) {
+        groupsData = groupsList.data.data;
+      }
+    }
+    
+    const thisMonth = Array.isArray(personalData)
+      ? personalData
+          .filter((d) => d?.year === currentYear && d?.month === currentMonth)
+          .reduce((sum, d) => sum + (d?.total || 0), 0)
+      : 0;
 
-        const thisYear = monthlyArray
-          .filter((d) => d.year === currentYear)
-          .reduce((sum, d) => sum + d.total, 0);
+    const thisYear = Array.isArray(personalData)
+      ? personalData
+          .filter((d) => d?.year === currentYear)
+          .reduce((sum, d) => sum + (d?.total || 0), 0)
+      : 0;
 
-        const groupCount = Array.isArray(groupsData) ? groupsData.length : (groupsData.groups || []).length;
+    const groupCount = Array.isArray(groupsData) ? groupsData.length : 0;
 
-        setStats([
-          { label: "My Groups",             value: groupCount,                                         icon: "👥", color: "#4ecdc4", path: "/groups"},
-          { label: "Total Groups Joined",   value: groupCount,                                         icon: "🤝", color: "#a29bfe", path: "/groups"   },
-          { label: "This Month's Expenses", value: `₹${thisMonth.toLocaleString("en-IN")}`,            icon: "📅", color: "#fdcb6e", path: "/expenses" },
-          { label: "This Year's Expenses",  value: `₹${thisYear.toLocaleString("en-IN")}`,             icon: "💸", color: "#e94560", path: "/expenses" },
-        ]);
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to load dashboard data.");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    return [
+      { label: "My Groups",             value: groupCount,                                         icon: "👥", color: "#4ecdc4", path: "/groups"},
+      { label: "Total Groups Joined",   value: groupCount,                                         icon: "🤝", color: "#a29bfe", path: "/groups"   },
+      { label: "This Month's Expenses", value: `₹${thisMonth.toLocaleString("en-IN")}`,            icon: "📅", color: "#fdcb6e", path: "/expenses" },
+      { label: "This Year's Expenses",  value: `₹${thisYear.toLocaleString("en-IN")}`,             icon: "💸", color: "#e94560", path: "/expenses" },
+    ];
+  };
 
-  if (loading) {
+  const stats = calculateStats();
+  const isLoading = groupsList?.loading || personalAnalytics?.loading;
+  const errorMsg = groupsList?.error || personalAnalytics?.error;
+
+  if (isLoading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
@@ -69,9 +92,9 @@ export default function HomePage() {
 
   return (
     <Container fluid="xl" className="py-4">
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError("")} className="mb-4">
-          {error}
+      {errorMsg && (
+        <Alert variant="danger" dismissible onClose={() => {}} className="mb-4">
+          {errorMsg}
         </Alert>
       )}
       {/* Hero */}
