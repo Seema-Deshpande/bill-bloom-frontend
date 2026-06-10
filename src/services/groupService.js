@@ -2,9 +2,11 @@ import apiClient from "../api/apiClient";
 import { GROUP_API } from "../config/apiConfig";
 import { smartExtractData } from "../utils/extractApiData";
 
-export const createGroup =  async (groupData) => {
+export const createGroup = async (groupData) => {
     const res = await apiClient.post(GROUP_API.BASE, groupData);
-    return smartExtractData(res);
+    // Backend returns { message, group } — extract the group object directly
+    // so the Redux list receives a fully-shaped, populated group entry
+    return res.data?.group ?? smartExtractData(res);
 };
 
 export const getGroups = async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Container, Card, Button, Spinner, Alert, Modal, Form
@@ -27,6 +27,7 @@ import GroupExpenseForm from "../components/expenses/GroupExpenseForm";
 import GroupExpenseLedger from "../components/expenses/GroupExpenseLedger";
 import SettlementSummary from "../components/settlements/SettlementSummary";
 import PayConfirmation from "../components/settlements/PayConfirmation";
+import { toCategoryChartData } from "../utils/chartUtils";
 
 const PIE_COLORS = ["#e94560", "#4ecdc4", "#a29bfe", "#fdcb6e", "#00b894", "#6c5ce7", "#fd79a8"];
 
@@ -37,12 +38,37 @@ export default function GroupDetailPage() {
   
   const { user } = useSelector((state) => state.auth);
   const { detail: groupDetail } = useSelector((state) => state.group);
-  const groupExpenses = useSelector((state) => state.expense.group.data[groupId] || []);
-  const groupCategories = useSelector((state) => state.analytics.groupCategories);
-  const calculatedSettlements = useSelector((state) => state.settlement.calculated.data[groupId] || []);
-  const settlementsHistory = useSelector((state) => state.settlement.history.data[groupId] || []);
+  const expenseGroupData = useSelector((state) => state.expense.group.data);
+  const analyticsData = useSelector((state) => state.analytics.groupCategories);
+  const settlementCalculatedData = useSelector((state) => state.settlement.calculated.data);
+  const settlementHistoryData = useSelector((state) => state.settlement.history.data);
+  
+  // Memoized selectors to prevent unnecessary rerenders
+  const groupExpenses = useMemo(
+    () => expenseGroupData?.[groupId] ?? [],
+    [expenseGroupData, groupId]
+  );
+  
+  const groupCategories = useMemo(
+    () => analyticsData,
+    [analyticsData]
+  );
+  
+  const calculatedSettlements = useMemo(
+    () => settlementCalculatedData?.[groupId] ?? [],
+    [settlementCalculatedData, groupId]
+  );
+  
+  const settlementsHistory = useMemo(
+    () => settlementHistoryData?.[groupId] ?? [],
+    [settlementHistoryData, groupId]
+  );
 
-  const [pieData, setPieData] = useState([]);
+  const pieData = useMemo(
+    () => toCategoryChartData(groupCategories?.data?.[groupId]),
+    [groupCategories?.data, groupId]
+  );
+
   const [successMessage, setSuccessMessage] = useState("");
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -60,28 +86,6 @@ export default function GroupDetailPage() {
     dispatch(calculateSettlements(groupId));
     dispatch(fetchGroupSettlementHistory(groupId));
   }, [dispatch, groupId]);
-
-  // Transform category data to pie chart format
-  useEffect(() => {
-    const categoryData = groupCategories?.data?.[groupId];
-    if (Array.isArray(categoryData) && categoryData.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPieData(
-        categoryData.map((item) => ({ 
-          name: item.category, 
-          value: item.total 
-        }))
-      );
-    }
-  }, [groupId, groupCategories?.data]);
-
-  // Initialize edit name from group data
-  useEffect(() => {
-    if (!editName && groupDetail.data?.name) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setEditName(groupDetail.data.name);
-    }
-  }, [groupDetail.data?.name, editName]);
 
   const handleAddExpense = async (formData) => {
     const result = await dispatch(createExpense({ 
@@ -218,7 +222,7 @@ export default function GroupDetailPage() {
                 <Button
                   variant="outline-secondary"
                   size="sm"
-                  onClick={() => setShowEditModal(true)}
+                  onClick={() => { setEditName(groupDetail.data?.name ?? ""); setShowEditModal(true); }}
                 >
                   Edit
                 </Button>
@@ -358,6 +362,7 @@ export default function GroupDetailPage() {
         <Modal.Body>
           <GroupExpenseForm
             members={group.members || []}
+            groupId={groupId}
             onSubmit={handleAddExpense}
             onCancel={() => setShowExpenseForm(false)}
           />

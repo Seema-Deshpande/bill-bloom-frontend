@@ -39,7 +39,6 @@ export default function PersonalExpenseForm({ onSubmit, onCancel, submitting = f
       description: form.description.trim(),
       date: form.date,
     };
-    console.log("Personal expense data:", payload);
     onSubmit && onSubmit(payload);
     setForm({ amount: "", category: "", description: "", date: new Date().toISOString().split("T")[0] });
     setErrors({});

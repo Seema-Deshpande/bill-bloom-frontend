@@ -1,9 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
-import authReducer from '../reducers/authSlice.js'
+import authReducer from '../reducers/authSlice.js';
 import groupReducer from '../reducers/groupSlice.js';
-import expenseReducer from '../reducers/expenseSlice.js'
+import expenseReducer from '../reducers/expenseSlice.js';
 import settlementReducer from '../reducers/settlementSlice.js';
-import analyticsReducer from '../reducers/analyticsSlice.js'
+import analyticsReducer from '../reducers/analyticsSlice.js';
+import aiReducer from '../reducers/aiSlice.js';
 
 export const store = configureStore({
     reducer: {
@@ -11,6 +12,7 @@ export const store = configureStore({
         group: groupReducer,
         expense: expenseReducer,
         settlement: settlementReducer,
-        analytics: analyticsReducer
-    }
-})
+        analytics: analyticsReducer,
+        ai: aiReducer,
+    },
+});

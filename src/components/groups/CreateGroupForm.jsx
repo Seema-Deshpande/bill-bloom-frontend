@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Form, Button, Alert, Card, Badge } from "react-bootstrap";
+import { Form, Button, Alert, Card, Badge, Spinner } from "react-bootstrap";
 import { searchUsers } from "../../services/userService";
 
 export default function CreateGroupForm({ onSubmit, onCancel }) {
@@ -36,8 +36,8 @@ export default function CreateGroupForm({ onSubmit, onCancel }) {
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const data = await searchUsers(q.trim());
-        setSearchResults((data.users || []).filter((u) => !selectedMembers.find((m) => m._id === u._id)));
+        const users = await searchUsers(q.trim());
+        setSearchResults(users.filter((u) => !selectedMembers.find((m) => m._id === u._id)));
         setDropdownOpen(true);
       } catch {
         setSearchResults([]);

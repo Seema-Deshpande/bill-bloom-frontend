@@ -52,3 +52,11 @@ export const USER_API = {
     DETAIL: (userId) => `/users/${userId}`,
     SEARCH: (query) => `/users/search?q=${encodeURIComponent(query)}`,
 };
+
+// AI API Endpoints
+
+export const AI_API = {
+    PARSE_EXPENSE: "/ai/parse-expense",
+    ANALYSE_PERSONAL: "/ai/analyse-personal",
+    SCAN_BILL: "/ai/scan-bill",
+};

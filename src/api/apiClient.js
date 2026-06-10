@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 const getStoredToken = () => {
     const token = localStorage.getItem("token");
@@ -40,52 +40,5 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
     }
 );
-
-export const fetchAPI = async (endpoint, options = {}) => {
-    const { method = 'GET', body, headers, ...rest } = options;
-    let data = rest.data;
-    
-    if (body !== undefined && data === undefined) {
-        if (typeof body === 'string') {
-            try {
-                data = JSON.parse(body);
-            } catch {
-                data = body;
-            }
-        } else {
-            data = body;
-        }
-    }
-    
-    try {
-        const response = await apiClient.request({
-            url: endpoint,
-            method,
-            headers,
-            data,
-            ...rest,
-        });
-        return response.data;
-    } catch (error) {
-        // Handle API errors with proper error messages
-        if (error.response) {
-            const errorData = error.response.data || {};
-            const message = errorData.message || `API Error: ${error.response.status}`;
-            const normalizedError = new Error(message);
-            normalizedError.response = {
-                status: error.response.status,
-                data: errorData,
-            };
-            throw normalizedError;
-        }
-        
-        // Handle network errors
-        if (error.message === 'Network Error') {
-            throw new Error('Network error: Unable to reach the server. Make sure the backend is running.');
-        }
-        
-        throw error;
-    }
-};
 
 export default apiClient;
